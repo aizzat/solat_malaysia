@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import '../theme.dart';
 
 class AboutScreen extends StatelessWidget {
@@ -19,6 +20,20 @@ class AboutScreen extends StatelessWidget {
           Text(
             'Solat Malaysia',
             style: Theme.of(context).textTheme.displayMedium,
+          ),
+          const SizedBox(height: 8),
+          FutureBuilder<PackageInfo>(
+            future: PackageInfo.fromPlatform(),
+            builder: (context, snapshot) {
+              final versionStr = snapshot.hasData ? 'v${snapshot.data!.version}' : '';
+              return Text(
+                versionStr,
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.petronasYellow,
+                ),
+              );
+            },
           ),
           const SizedBox(height: 16),
           Text(

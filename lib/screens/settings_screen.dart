@@ -4,6 +4,7 @@ import '../providers/prayer_provider.dart';
 import '../providers/theme_provider.dart';
 import '../utils/jakim_zones.dart';
 import '../services/location_service.dart';
+import '../services/notification_service.dart';
 import '../theme.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -84,6 +85,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     if (val != null) themeProvider.setThemeMode(val);
                   },
                 ),
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
+            Text(
+              'Notifications',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: textColor,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Card(
+              elevation: 2,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              child: ListTile(
+                leading: const Icon(Icons.notifications_active, color: AppTheme.petronasGreen),
+                title: const Text('Test Notification & Sound'),
+                subtitle: const Text('Sends a test notification in 5 seconds.'),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                onTap: () {
+                  NotificationService.testNotification();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Test notification will appear in 5 seconds.')),
+                  );
+                },
               ),
             ),
 

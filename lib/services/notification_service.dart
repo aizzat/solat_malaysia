@@ -18,6 +18,15 @@ class NotificationService {
     );
 
     await flutterLocalNotificationsPlugin.initialize(settings: initializationSettings);
+
+    final AndroidFlutterLocalNotificationsPlugin? androidImplementation =
+        flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
+
+    if (androidImplementation != null) {
+      await androidImplementation.requestNotificationsPermission();
+      await androidImplementation.requestExactAlarmsPermission();
+    }
   }
 
   static Future<void> schedulePrayerNotifications(List<PrayerTime> prayerTimes) async {
@@ -53,6 +62,27 @@ class NotificationService {
           channelDescription: 'Notifications for prayer times',
           importance: Importance.max,
           priority: Priority.high,
+          playSound: true,
+        ),
+      ),
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+    );
+  }
+
+  static Future<void> testNotification() async {
+    await flutterLocalNotificationsPlugin.zonedSchedule(
+      id: 999,
+      title: 'Test Notification',
+      body: 'This is a test notification. Sound is working!',
+      scheduledDate: tz.TZDateTime.now(tz.local).add(const Duration(seconds: 5)),
+      notificationDetails: const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'prayer_channel_id',
+          'Prayer Notifications',
+          channelDescription: 'Notifications for prayer times',
+          importance: Importance.max,
+          priority: Priority.high,
+          playSound: true,
         ),
       ),
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
