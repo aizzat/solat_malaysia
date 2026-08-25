@@ -34,7 +34,7 @@
             android:drawablePadding="4dp" />
     </LinearLayout>
 
-    <Space android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" />
+    <FrameLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" />
 
     <!-- Center: Next Prayer prominently displayed -->
     <LinearLayout
@@ -88,7 +88,7 @@
         </LinearLayout>
     </LinearLayout>
 
-    <Space android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" />
+    <FrameLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" />
 
     <!-- Bottom: All 5 Prayers in a sleek rounded translucent bar -->
     <LinearLayout

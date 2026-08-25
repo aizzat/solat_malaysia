@@ -2,7 +2,7 @@
 
 A modern, cross-platform Flutter application that provides highly accurate prayer (Solat) times for Muslims in Malaysia and worldwide.
 
-Designed and developed by **Dr. Muhammad Aizzat Bin Zakaria**.
+Designed and developed by **dr. aizzat (maizzat.my)**.
 
 ## Features
 
@@ -52,4 +52,4 @@ flutter build apk --split-per-abi
 ```
 
 ## Contact
-Developed by [maizzat2@gmail.com](mailto:maizzat2@gmail.com)
+Developed by **dr. aizzat (maizzat.my)**
