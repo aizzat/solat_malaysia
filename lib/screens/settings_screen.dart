@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/prayer_provider.dart';
+import '../providers/theme_provider.dart';
 import '../utils/jakim_zones.dart';
+import '../services/location_service.dart';
 import '../theme.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -14,23 +16,88 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   String? _selectedState;
   String? _selectedZone;
+  final TextEditingController _searchController = TextEditingController();
+  bool _isSearching = false;
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _searchLocation(PrayerProvider provider) async {
+    if (_searchController.text.trim().isEmpty) return;
+    
+    setState(() { _isSearching = true; });
+    final locationService = LocationService();
+    final result = await locationService.searchLocation(_searchController.text);
+    
+    setState(() { _isSearching = false; });
+    
+    if (result != null && result.latitude != null && result.longitude != null) {
+      provider.setManualCoordinates(result.latitude!, result.longitude!, result.city ?? _searchController.text);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Location set to ${result.city}')));
+        _searchController.clear();
+      }
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Location not found.')));
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = context.watch<ThemeProvider>();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? AppTheme.petronasGreen : AppTheme.petronasBlue;
+
     return Consumer<PrayerProvider>(
       builder: (context, provider, child) {
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            const Text(
+            Text(
+              'Appearance',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: textColor,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Card(
+              elevation: 2,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: DropdownButtonFormField<ThemeMode>(
+                  decoration: const InputDecoration(labelText: 'Theme', border: InputBorder.none),
+                  value: themeProvider.themeMode,
+                  items: const [
+                    DropdownMenuItem(value: ThemeMode.system, child: Text('System Default')),
+                    DropdownMenuItem(value: ThemeMode.light, child: Text('Light Mode')),
+                    DropdownMenuItem(value: ThemeMode.dark, child: Text('Dark Mode')),
+                  ],
+                  onChanged: (val) {
+                    if (val != null) themeProvider.setThemeMode(val);
+                  },
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
+            Text(
               'Location Settings',
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
-                color: AppTheme.petronasBlue,
+                color: textColor,
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 8),
             Card(
               elevation: 2,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -41,6 +108,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   children: [
                     SwitchListTile(
                       activeColor: AppTheme.petronasGreen,
+                      contentPadding: EdgeInsets.zero,
                       title: const Text('Auto-detect Location (GPS)'),
                       subtitle: const Text('Uses device GPS to determine best API and Zone.'),
                       value: provider.useAutoDetect,
@@ -53,7 +121,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: 8),
                         child: Text(
-                          'Manual JAKIM Zone Selection',
+                          'International Manual Setup',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _searchController,
+                              decoration: const InputDecoration(
+                                hintText: 'Enter City or Country...',
+                                border: OutlineInputBorder(),
+                                isDense: true,
+                              ),
+                              onSubmitted: (_) => _searchLocation(provider),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          _isSearching
+                              ? const Padding(padding: EdgeInsets.all(12), child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator()))
+                              : IconButton(
+                                  icon: const Icon(Icons.search, color: AppTheme.petronasGreen),
+                                  onPressed: () => _searchLocation(provider),
+                                ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      const Divider(),
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 8),
+                        child: Text(
+                          'Malaysia JAKIM Zone Selection',
                           style: TextStyle(fontWeight: FontWeight.bold),
                         ),
                       ),
@@ -105,12 +204,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
             
             const SizedBox(height: 24),
             if (provider.locationResult != null) ...[
-               const Text(
+               Text(
                 'Current Detection Info',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  color: AppTheme.petronasBlue,
+                  color: textColor,
                 ),
               ),
               const SizedBox(height: 8),

@@ -5,6 +5,7 @@ import 'screens/about_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/settings_screen.dart';
 import 'providers/prayer_provider.dart';
+import 'providers/theme_provider.dart';
 import 'services/notification_service.dart';
 import 'package:workmanager/workmanager.dart';
 
@@ -33,8 +34,11 @@ void main() async {
   );
 
   runApp(
-    ChangeNotifierProvider(
-      create: (_) => PrayerProvider(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => PrayerProvider()),
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
+      ],
       child: const SolatMalaysiaApp(),
     ),
   );
@@ -45,10 +49,16 @@ class SolatMalaysiaApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Solat Malaysia',
-      theme: AppTheme.lightTheme,
-      home: const MainScreen(),
+    return Consumer<ThemeProvider>(
+      builder: (context, themeProvider, child) {
+        return MaterialApp(
+          title: 'Solat Malaysia',
+          theme: AppTheme.lightTheme,
+          darkTheme: AppTheme.darkTheme,
+          themeMode: themeProvider.themeMode,
+          home: const MainScreen(),
+        );
+      },
     );
   }
 }

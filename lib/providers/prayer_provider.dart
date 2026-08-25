@@ -13,6 +13,9 @@ class PrayerProvider with ChangeNotifier {
   LocationResult? _locationResult;
   bool _useAutoDetect = true;
   String _manualJakimZone = 'WLY01'; // Default manual zone
+  double? _manualLat;
+  double? _manualLng;
+  String? _manualCity;
 
   List<PrayerTime> get prayerTimes => _prayerTimes;
   bool get isLoading => _isLoading;
@@ -29,6 +32,16 @@ class PrayerProvider with ChangeNotifier {
     _useAutoDetect = prefs.getBool('useAutoDetect') ?? true;
     _manualJakimZone = prefs.getString('manualJakimZone') ?? 'WLY01';
     
+    final lat = prefs.getDouble('manualLat');
+    final lng = prefs.getDouble('manualLng');
+    final city = prefs.getString('manualCity');
+    
+    if (lat != null && lng != null) {
+      _manualLat = lat;
+      _manualLng = lng;
+      _manualCity = city;
+    }
+    
     fetchData();
   }
 
@@ -44,10 +57,25 @@ class PrayerProvider with ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('manualJakimZone', zoneCode);
     _manualJakimZone = zoneCode;
+    // Clear manual coordinates if setting JAKIM zone
+    await prefs.remove('manualLat');
+    await prefs.remove('manualLng');
+    _manualLat = null;
+    _manualLng = null;
     notifyListeners();
-    if (!_useAutoDetect) {
-      fetchData();
-    }
+    if (!_useAutoDetect) fetchData();
+  }
+
+  Future<void> setManualCoordinates(double lat, double lng, String city) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble('manualLat', lat);
+    await prefs.setDouble('manualLng', lng);
+    await prefs.setString('manualCity', city);
+    _manualLat = lat;
+    _manualLng = lng;
+    _manualCity = city;
+    notifyListeners();
+    if (!_useAutoDetect) fetchData();
   }
 
   Future<void> fetchData() async {
@@ -69,14 +97,26 @@ class PrayerProvider with ChangeNotifier {
           );
         }
       } else {
-        // Manual override for Malaysia
-        _prayerTimes = await ApiService.getJakimPrayerTimes(_manualJakimZone);
-        _locationResult = LocationResult(
-          isMalaysia: true, 
-          jakimZoneCode: _manualJakimZone,
-          city: 'Manual Zone: $_manualJakimZone',
-          country: 'Malaysia',
-        );
+        if (_manualLat != null && _manualLng != null) {
+          // Manual override for International
+          _prayerTimes = await ApiService.getAladhanPrayerTimes(_manualLat!, _manualLng!);
+          _locationResult = LocationResult(
+            isMalaysia: false,
+            city: _manualCity ?? 'Manual Location',
+            country: 'Manual',
+            latitude: _manualLat,
+            longitude: _manualLng,
+          );
+        } else {
+          // Manual override for Malaysia
+          _prayerTimes = await ApiService.getJakimPrayerTimes(_manualJakimZone);
+          _locationResult = LocationResult(
+            isMalaysia: true, 
+            jakimZoneCode: _manualJakimZone,
+            city: 'Manual Zone: $_manualJakimZone',
+            country: 'Malaysia',
+          );
+        }
       }
     } catch (e) {
       _errorMessage = e.toString();

@@ -45,4 +45,41 @@ class AppTheme {
       useMaterial3: true,
     );
   }
+  static ThemeData get darkTheme {
+    return ThemeData(
+      primaryColor: petronasGreen,
+      scaffoldBackgroundColor: const Color(0xFF001122), // Very dark navy
+      colorScheme: const ColorScheme.dark(
+        primary: petronasGreen,
+        secondary: petronasYellow,
+        tertiary: petronasBlue,
+        surface: Color(0xFF001A33),
+        onPrimary: white,
+        onSecondary: black,
+        onSurface: white,
+      ),
+      appBarTheme: const AppBarTheme(
+        backgroundColor: Color(0xFF001122),
+        foregroundColor: petronasGreen,
+        elevation: 0,
+        centerTitle: true,
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: petronasGreen,
+          foregroundColor: white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+      ),
+      textTheme: const TextTheme(
+        displayLarge: TextStyle(color: petronasGreen, fontWeight: FontWeight.bold),
+        displayMedium: TextStyle(color: petronasGreen, fontWeight: FontWeight.bold),
+        bodyLarge: TextStyle(color: white),
+        bodyMedium: TextStyle(color: white),
+      ),
+      useMaterial3: true,
+    );
+  }
 }

@@ -95,4 +95,34 @@ class LocationService {
       longitude: position.longitude,
     );
   }
+
+  Future<LocationResult?> searchLocation(String address) async {
+    try {
+      final Geocoding geocoding = Geocoding();
+      List<Location> locations = await geocoding.locationFromAddress(address);
+      if (locations.isNotEmpty) {
+        Location loc = locations.first;
+        List<Placemark> placemarks = await geocoding.placemarkFromCoordinates(
+          loc.latitude,
+          loc.longitude,
+        );
+        String city = address;
+        if (placemarks.isNotEmpty) {
+          Placemark place = placemarks[0];
+          city = [place.locality, place.administrativeArea, place.country]
+              .where((s) => s != null && s.isNotEmpty)
+              .join(', ');
+        }
+        return LocationResult(
+          isMalaysia: false,
+          city: city,
+          latitude: loc.latitude,
+          longitude: loc.longitude,
+        );
+      }
+    } catch (e) {
+      return null;
+    }
+    return null;
+  }
 }
