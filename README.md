@@ -53,3 +53,7 @@ flutter build apk --split-per-abi
 
 ## Contact
 Developed by **dr. aizzat (maizzat.my)**
+
+## License
+The code in this repository can be used for **personal use only**. 
+If you want to use this code for commercial purposes, please contact Dr. Aizzat.
