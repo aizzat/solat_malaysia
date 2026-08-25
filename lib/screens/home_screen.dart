@@ -42,7 +42,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return "${twoDigits(duration.inHours)}:$twoDigitMinutes:$twoDigitSeconds";
   }
 
-  Widget _buildPrayerRow(String name, DateTime time, bool isNext) {
+  Widget _buildPrayerRow(String name, DateTime time, bool isNext, bool isDark) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
       margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 16),
@@ -62,7 +62,7 @@ class _HomeScreenState extends State<HomeScreen> {
             style: TextStyle(
               fontSize: 18,
               fontWeight: isNext ? FontWeight.bold : FontWeight.normal,
-              color: isNext ? AppTheme.petronasGreen : AppTheme.black,
+              color: isNext ? AppTheme.petronasGreen : (isDark ? AppTheme.white : AppTheme.black),
             ),
           ),
           Text(
@@ -70,7 +70,7 @@ class _HomeScreenState extends State<HomeScreen> {
             style: TextStyle(
               fontSize: 18,
               fontWeight: isNext ? FontWeight.bold : FontWeight.normal,
-              color: isNext ? AppTheme.petronasGreen : AppTheme.black,
+              color: isNext ? AppTheme.petronasGreen : (isDark ? AppTheme.white : AppTheme.black),
             ),
           ),
         ],
@@ -82,6 +82,8 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Consumer<PrayerProvider>(
       builder: (context, provider, child) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+
         if (provider.isLoading) {
           return const Center(child: CircularProgressIndicator(color: AppTheme.petronasGreen));
         }
@@ -154,7 +156,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     Text(
                       '${hijriDate.hDay} ${hijriDate.longMonthName} ${hijriDate.hYear}H',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppTheme.petronasBlue,
+                        color: isDark ? AppTheme.petronasGreen : AppTheme.petronasBlue,
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -221,7 +223,8 @@ class _HomeScreenState extends State<HomeScreen> {
               ...prayers.map((p) => _buildPrayerRow(
                 p['name'] as String,
                 p['time'] as DateTime,
-                p['name'] == nextPrayer?['name']
+                p['name'] == nextPrayer?['name'],
+                isDark,
               )),
             ],
           ),

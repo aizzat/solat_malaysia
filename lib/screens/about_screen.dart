@@ -36,7 +36,7 @@ class AboutScreen extends StatelessWidget {
           Text(
             'maizzat2@gmail.com',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppTheme.petronasBlue,
+                  color: Theme.of(context).brightness == Brightness.dark ? AppTheme.petronasGreen : AppTheme.petronasBlue,
                 ),
           ),
         ],
