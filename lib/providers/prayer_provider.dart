@@ -12,6 +12,7 @@ class PrayerProvider with ChangeNotifier {
   String _errorMessage = '';
   LocationResult? _locationResult;
   bool _useAutoDetect = true;
+  bool _use24HourFormat = false;
   String _manualJakimZone = 'WLY01'; // Default manual zone
   double? _manualLat;
   double? _manualLng;
@@ -22,6 +23,7 @@ class PrayerProvider with ChangeNotifier {
   String get errorMessage => _errorMessage;
   LocationResult? get locationResult => _locationResult;
   bool get useAutoDetect => _useAutoDetect;
+  bool get use24HourFormat => _use24HourFormat;
 
   PrayerProvider() {
     _loadPreferences();
@@ -30,6 +32,7 @@ class PrayerProvider with ChangeNotifier {
   Future<void> _loadPreferences() async {
     final prefs = await SharedPreferences.getInstance();
     _useAutoDetect = prefs.getBool('useAutoDetect') ?? true;
+    _use24HourFormat = prefs.getBool('use24HourFormat') ?? false;
     _manualJakimZone = prefs.getString('manualJakimZone') ?? 'WLY01';
     
     final lat = prefs.getDouble('manualLat');
@@ -51,6 +54,14 @@ class PrayerProvider with ChangeNotifier {
     _useAutoDetect = value;
     notifyListeners();
     fetchData();
+  }
+
+  Future<void> setUse24HourFormat(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('use24HourFormat', value);
+    _use24HourFormat = value;
+    notifyListeners();
+    _updateHomeWidget();
   }
 
   Future<void> setManualZone(String zoneCode) async {
@@ -154,7 +165,16 @@ class PrayerProvider with ChangeNotifier {
       }
       nextPrayer ??= {'name': 'Fajr', 'time': todayPrayer.fajr.add(const Duration(days: 1))};
 
-      final timeFormat = (DateTime t) => '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+      final timeFormat = (DateTime t) {
+        if (_use24HourFormat) {
+          return '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+        } else {
+          int h = t.hour;
+          final int hour12 = h == 0 ? 12 : (h > 12 ? h - 12 : h);
+          final String amPm = h >= 12 ? 'PM' : 'AM';
+          return '${hour12.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')} $amPm';
+        }
+      };
 
       await HomeWidget.saveWidgetData<String>('location', _locationResult?.city ?? 'Unknown Location');
       await HomeWidget.saveWidgetData<String>('next_prayer_name', nextPrayer['name']);

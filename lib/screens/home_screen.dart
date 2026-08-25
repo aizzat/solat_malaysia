@@ -5,6 +5,7 @@ import 'package:hijri/hijri_calendar.dart';
 import 'dart:async';
 import '../providers/prayer_provider.dart';
 import '../models/prayer_time.dart';
+import '../services/notification_service.dart';
 import '../theme.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -21,6 +22,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    NotificationService.requestPermissions();
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       setState(() {
         _now = DateTime.now();
@@ -42,7 +44,8 @@ class _HomeScreenState extends State<HomeScreen> {
     return "${twoDigits(duration.inHours)}:$twoDigitMinutes:$twoDigitSeconds";
   }
 
-  Widget _buildPrayerRow(String name, DateTime time, bool isNext, bool isDark) {
+  Widget _buildPrayerRow(String name, DateTime time, bool isNext, bool isDark, PrayerProvider provider) {
+    final formatString = provider.use24HourFormat ? 'HH:mm' : 'hh:mm a';
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
       margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 16),
@@ -66,7 +69,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           Text(
-            DateFormat('hh:mm a').format(time),
+            DateFormat(formatString).format(time),
             style: TextStyle(
               fontSize: 18,
               fontWeight: isNext ? FontWeight.bold : FontWeight.normal,
@@ -225,6 +228,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 p['time'] as DateTime,
                 p['name'] == nextPrayer?['name'],
                 isDark,
+                provider,
               )),
             ],
           ),

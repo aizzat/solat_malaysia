@@ -15,6 +15,7 @@
         android:gravity="center_vertical">
 
         <TextView
+            android:fontFamily="@font/poppins"
             android:layout_width="0dp"
             android:layout_weight="1"
             android:layout_height="wrap_content"
@@ -24,6 +25,7 @@
             android:textStyle="italic" />
 
         <TextView
+            android:fontFamily="@font/poppins_bold"
             android:id="@+id/widget_location"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -45,6 +47,7 @@
         android:gravity="center">
 
         <TextView
+            android:fontFamily="@font/poppins_bold"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="NEXT PRAYER"
@@ -61,6 +64,7 @@
             android:layout_marginTop="4dp">
 
             <TextView
+                android:fontFamily="@font/poppins_bold"
                 android:id="@+id/widget_next_prayer_name"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -70,6 +74,7 @@
                 android:textStyle="bold"/>
 
             <TextView
+                android:fontFamily="@font/poppins"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text=" - "
@@ -79,6 +84,7 @@
                 android:layout_marginEnd="4dp"/>
 
             <TextView
+                android:fontFamily="@font/poppins_bold"
                 android:id="@+id/widget_next_prayer_time"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -104,28 +110,28 @@
         android:weightSum="5">
 
         <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical" android:gravity="center">
-            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="FAJR" android:textColor="#B2DFDB" android:textSize="9sp" android:textStyle="bold"/>
-            <TextView android:id="@+id/widget_fajr" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="--" android:textColor="#FFFFFF" android:textSize="12sp" android:textStyle="bold" android:layout_marginTop="2dp"/>
+            <TextView android:fontFamily="@font/poppins_bold" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="FAJR" android:textColor="#B2DFDB" android:textSize="9sp" android:textStyle="bold"/>
+            <TextView android:fontFamily="@font/poppins_bold" android:id="@+id/widget_fajr" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="--" android:textColor="#FFFFFF" android:textSize="12sp" android:textStyle="bold" android:layout_marginTop="2dp"/>
         </LinearLayout>
 
         <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical" android:gravity="center">
-            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="DHUHR" android:textColor="#B2DFDB" android:textSize="9sp" android:textStyle="bold"/>
-            <TextView android:id="@+id/widget_dhuhr" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="--" android:textColor="#FFFFFF" android:textSize="12sp" android:textStyle="bold" android:layout_marginTop="2dp"/>
+            <TextView android:fontFamily="@font/poppins_bold" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="DHUHR" android:textColor="#B2DFDB" android:textSize="9sp" android:textStyle="bold"/>
+            <TextView android:fontFamily="@font/poppins_bold" android:id="@+id/widget_dhuhr" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="--" android:textColor="#FFFFFF" android:textSize="12sp" android:textStyle="bold" android:layout_marginTop="2dp"/>
         </LinearLayout>
 
         <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical" android:gravity="center">
-            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="ASR" android:textColor="#B2DFDB" android:textSize="9sp" android:textStyle="bold"/>
-            <TextView android:id="@+id/widget_asr" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="--" android:textColor="#FFFFFF" android:textSize="12sp" android:textStyle="bold" android:layout_marginTop="2dp"/>
+            <TextView android:fontFamily="@font/poppins_bold" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="ASR" android:textColor="#B2DFDB" android:textSize="9sp" android:textStyle="bold"/>
+            <TextView android:fontFamily="@font/poppins_bold" android:id="@+id/widget_asr" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="--" android:textColor="#FFFFFF" android:textSize="12sp" android:textStyle="bold" android:layout_marginTop="2dp"/>
         </LinearLayout>
 
         <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical" android:gravity="center">
-            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="MAGHRIB" android:textColor="#B2DFDB" android:textSize="9sp" android:textStyle="bold"/>
-            <TextView android:id="@+id/widget_maghrib" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="--" android:textColor="#FFFFFF" android:textSize="12sp" android:textStyle="bold" android:layout_marginTop="2dp"/>
+            <TextView android:fontFamily="@font/poppins_bold" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="MAGHRIB" android:textColor="#B2DFDB" android:textSize="9sp" android:textStyle="bold"/>
+            <TextView android:fontFamily="@font/poppins_bold" android:id="@+id/widget_maghrib" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="--" android:textColor="#FFFFFF" android:textSize="12sp" android:textStyle="bold" android:layout_marginTop="2dp"/>
         </LinearLayout>
 
         <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical" android:gravity="center">
-            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="ISHA" android:textColor="#B2DFDB" android:textSize="9sp" android:textStyle="bold"/>
-            <TextView android:id="@+id/widget_isha" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="--" android:textColor="#FFFFFF" android:textSize="12sp" android:textStyle="bold" android:layout_marginTop="2dp"/>
+            <TextView android:fontFamily="@font/poppins_bold" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="ISHA" android:textColor="#B2DFDB" android:textSize="9sp" android:textStyle="bold"/>
+            <TextView android:fontFamily="@font/poppins_bold" android:id="@+id/widget_isha" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="--" android:textColor="#FFFFFF" android:textSize="12sp" android:textStyle="bold" android:layout_marginTop="2dp"/>
         </LinearLayout>
     </LinearLayout>
 
