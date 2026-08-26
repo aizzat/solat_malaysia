@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:home_widget/home_widget.dart';
+import 'package:hijri/hijri_calendar.dart';
 import '../models/prayer_time.dart';
 import '../services/api_service.dart';
 import '../services/location_service.dart';
 import '../services/notification_service.dart';
-import 'package:home_widget/home_widget.dart';
 
 class PrayerProvider with ChangeNotifier {
   List<PrayerTime> _prayerTimes = [];
@@ -25,8 +26,10 @@ class PrayerProvider with ChangeNotifier {
   bool get useAutoDetect => _useAutoDetect;
   bool get use24HourFormat => _use24HourFormat;
 
-  PrayerProvider() {
-    _loadPreferences();
+  PrayerProvider();
+
+  Future<void> init() async {
+    await _loadPreferences();
   }
 
   Future<void> _loadPreferences() async {
@@ -45,7 +48,7 @@ class PrayerProvider with ChangeNotifier {
       _manualCity = city;
     }
     
-    fetchData();
+    await fetchData();
   }
 
   Future<void> setUseAutoDetect(bool value) async {
@@ -134,8 +137,8 @@ class PrayerProvider with ChangeNotifier {
     } finally {
       _isLoading = false;
       if (_prayerTimes.isNotEmpty) {
-        NotificationService.schedulePrayerNotifications(_prayerTimes);
-        _updateHomeWidget();
+        await NotificationService.schedulePrayerNotifications(_prayerTimes);
+        await _updateHomeWidget();
       }
       notifyListeners();
     }
@@ -176,9 +179,19 @@ class PrayerProvider with ChangeNotifier {
         }
       };
 
+      final hijriDate = HijriCalendar.fromDate(now);
+      final hijriString = '${hijriDate.hDay} ${hijriDate.longMonthName} ${hijriDate.hYear}H';
+
       await HomeWidget.saveWidgetData<String>('location', _locationResult?.city ?? 'Unknown Location');
-      await HomeWidget.saveWidgetData<String>('next_prayer_name', nextPrayer['name']);
-      await HomeWidget.saveWidgetData<String>('next_prayer_time', timeFormat(nextPrayer['time']));
+      await HomeWidget.saveWidgetData<String>('hijri_date', hijriString);
+      
+      await HomeWidget.saveWidgetData<int>('fajr_ts', todayPrayer.fajr.millisecondsSinceEpoch);
+      await HomeWidget.saveWidgetData<int>('sunrise_ts', todayPrayer.sunrise.millisecondsSinceEpoch);
+      await HomeWidget.saveWidgetData<int>('dhuhr_ts', todayPrayer.dhuhr.millisecondsSinceEpoch);
+      await HomeWidget.saveWidgetData<int>('asr_ts', todayPrayer.asr.millisecondsSinceEpoch);
+      await HomeWidget.saveWidgetData<int>('maghrib_ts', todayPrayer.maghrib.millisecondsSinceEpoch);
+      await HomeWidget.saveWidgetData<int>('isha_ts', todayPrayer.isha.millisecondsSinceEpoch);
+      await HomeWidget.saveWidgetData<int>('next_fajr_ts', todayPrayer.fajr.add(const Duration(days: 1)).millisecondsSinceEpoch);
       
       await HomeWidget.saveWidgetData<String>('fajr', timeFormat(todayPrayer.fajr));
       await HomeWidget.saveWidgetData<String>('dhuhr', timeFormat(todayPrayer.dhuhr));

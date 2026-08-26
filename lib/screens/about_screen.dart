@@ -36,6 +36,23 @@ class AboutScreen extends StatelessWidget {
               );
             },
           ),
+          const SizedBox(height: 8),
+          InkWell(
+            onTap: () async {
+              final url = Uri.parse('https://www.research.maizzat.my/downloads/solat_malaysia_download.html');
+              if (await canLaunchUrl(url)) {
+                await launchUrl(url);
+              }
+            },
+            child: Text(
+              'check for latest update version here.',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).brightness == Brightness.dark ? AppTheme.petronasGreen : AppTheme.petronasBlue,
+                    fontWeight: FontWeight.bold,
+                    decoration: TextDecoration.underline,
+                  ),
+            ),
+          ),
           const SizedBox(height: 16),
           Text(
             'Developed by:',

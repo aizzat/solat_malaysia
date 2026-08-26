@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'theme.dart';
+import 'services/update_service.dart';
 import 'screens/about_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/settings_screen.dart';
@@ -11,10 +13,11 @@ import 'package:workmanager/workmanager.dart';
 
 @pragma('vm:entry-point')
 void callbackDispatcher() {
+  WidgetsFlutterBinding.ensureInitialized();
   Workmanager().executeTask((task, inputData) async {
     // Run in background: fetch data and update widget/notifications
     final provider = PrayerProvider();
-    await provider.fetchData(); 
+    await provider.init(); 
     return Future.value(true);
   });
 }
@@ -36,7 +39,7 @@ void main() async {
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => PrayerProvider()),
+        ChangeNotifierProvider(create: (_) => PrayerProvider()..init()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
       ],
       child: const SolatMalaysiaApp(),
@@ -72,6 +75,43 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkForUpdates();
+    });
+  }
+
+  Future<void> _checkForUpdates() async {
+    final hasUpdate = await UpdateService.checkForUpdate();
+    if (hasUpdate && mounted) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Update Available'),
+          content: const Text('A new version of Solat Malaysia is available. Would you like to download it now?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Later'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                Navigator.pop(context);
+                final Uri url = Uri.parse('https://www.research.maizzat.my/downloads/solat_malaysia_download.html');
+                if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+                  debugPrint('Could not launch update URL');
+                }
+              },
+              child: const Text('Update Now'),
+            ),
+          ],
+        ),
+      );
+    }
+  }
 
   static const List<Widget> _pages = <Widget>[
     HomeScreen(),
