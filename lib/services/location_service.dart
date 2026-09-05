@@ -60,8 +60,16 @@ class LocationService {
         Placemark place = placemarks[0];
         String country = place.country ?? '';
         String state = place.administrativeArea ?? '';
-        String city = place.locality ?? place.subAdministrativeArea ?? '';
-
+        List<String> cityParts = [
+          place.locality,
+          place.subLocality,
+          place.subAdministrativeArea,
+        ].where((s) => s != null && s.isNotEmpty).cast<String>().toList();
+        
+        String city = cityParts.join(' ');
+        
+        // Use a more readable display name for the UI, e.g. "Sublocality, Locality" or fallback to the full string
+        String displayCity = cityParts.isNotEmpty ? cityParts.take(2).join(', ') : city;
         bool isMalaysia = country.toLowerCase().contains('malaysia');
 
         if (isMalaysia) {
@@ -70,7 +78,7 @@ class LocationService {
             isMalaysia: true,
             jakimZoneCode: zoneCode,
             country: country,
-            city: '$city, $state',
+            city: '$displayCity, $state',
             latitude: position.latitude,
             longitude: position.longitude,
           );

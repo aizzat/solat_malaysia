@@ -1,7 +1,6 @@
-### What's New in v1.2.4
-* **Qibla Map Enhancements**: The Qibla map is now rounded, features a rotating direction arrow that aligns with your phone's heading, and includes zoom/recentering controls.
-* **Optimized Permissions**: Location permission is now requested reliably on fresh installs.
-* **Settings Update**: Added an "App Permissions" button in Settings to easily manage system access.
+### What's New in v1.2.6
+* **Smart Zone Detection**: Greatly improved the automatic JAKIM zone detection. The app will now accurately detect your district or specific area (like Dungun) and map it to the correct JAKIM zone, rather than falling back to the state default.
+* **Qibla Map Enhancements**: (From v1.2.4) Circular map design, rotating direction arrow, and zoom controls.
 
 ---
 
@@ -9,7 +8,7 @@
 
 Since this app is side-loaded, follow these steps to install:
 
-1. **Download the APK**: Under the **Assets** section below, tap on `solat_malaysia_v1.2.4.apk` to download it.
+1. **Download the APK**: Under the **Assets** section below, tap on `solat_malaysia_v1.2.6.apk` to download it.
 2. **Open the File**: Once downloaded, open it from your notifications or your device's "Downloads" folder.
 3. **Allow Unknown Sources**: If prompted, tap "Settings" and toggle on "Allow from this source".
 4. **Install**: Tap "Install".

@@ -94,33 +94,66 @@ class JakimZones {
     ],
   };
 
-  // Basic function to map string to a zone code, defaults to capital city/primary zone of the state
   static String guessZoneForStateAndCity(String state, String city) {
     String st = state.toLowerCase();
     String c = city.toLowerCase();
 
-    // Normalizing states (Geocoding sometimes returns "Federal Territory of Kuala Lumpur")
-    if (st.contains('kuala lumpur')) return 'WLY01';
-    if (st.contains('putrajaya')) return 'WLY01';
+    // Normalizing Federal Territories
+    if (st.contains('kuala lumpur') || st.contains('putrajaya')) return 'WLY01';
     if (st.contains('labuan')) return 'WLY02';
-    if (st.contains('selangor')) {
-      if (c.contains('selangor') || c.contains('sabak')) return 'SGR02';
-      if (c.contains('klang') || c.contains('langat')) return 'SGR03';
-      return 'SGR01'; // Default
+    if (c.contains('kuala lumpur') || c.contains('putrajaya')) return 'WLY01';
+    
+    // Find matching state key from our map
+    String? matchedStateKey;
+    for (String key in stateZones.keys) {
+      if (st.contains(key.toLowerCase())) {
+        matchedStateKey = key;
+        break;
+      }
     }
-    if (st.contains('johor')) return 'JHR02'; // Default JB
-    if (st.contains('kedah')) return 'KDH01'; // Default Alor Setar
-    if (st.contains('kelantan')) return 'KTN01'; // Default KB
-    if (st.contains('melaka') || st.contains('malacca')) return 'MLK01';
-    if (st.contains('sembilan')) return 'NGS02'; // Default Seremban
-    if (st.contains('pahang')) return 'PHG02'; // Default Kuantan
-    if (st.contains('perak')) return 'PRK02'; // Default Ipoh
-    if (st.contains('perlis')) return 'PLS01';
-    if (st.contains('pinang') || st.contains('penang')) return 'PNG01';
-    if (st.contains('sabah')) return 'SBH07'; // Default KK
-    if (st.contains('sarawak')) return 'SWK08'; // Default Kuching
-    if (st.contains('terengganu')) return 'TRG01'; // Default KT
+    
+    // Handle edge cases like "Penang" vs "Pulau Pinang" and "Malacca" vs "Melaka"
+    if (matchedStateKey == null) {
+      if (st.contains('penang') || st.contains('pinang')) matchedStateKey = 'Pulau Pinang';
+      else if (st.contains('malacca') || st.contains('melaka')) matchedStateKey = 'Melaka';
+      else if (st.contains('sembilan')) matchedStateKey = 'Negeri Sembilan';
+    }
 
-    return 'WLY01'; // Fallback KL
+    if (matchedStateKey != null) {
+      // 1. Try to find a matching city/area inside the state's zones
+      for (var zone in stateZones[matchedStateKey]!) {
+        String zoneName = zone['name']!.toLowerCase();
+        
+        // Some areas have brackets, remove them for easier matching
+        zoneName = zoneName.replaceAll('(', '').replaceAll(')', '');
+        
+        List<String> areas = zoneName.split(',').map((e) => e.trim()).toList();
+        
+        for (String area in areas) {
+          if (area.isEmpty) continue;
+          // If Geocoding city contains the JAKIM area name, or vice versa
+          if (c.contains(area) || area.contains(c)) {
+            return zone['code']!;
+          }
+        }
+      }
+      
+      // 2. Fallbacks if city doesn't match any specific zone
+      if (matchedStateKey == 'Selangor') return 'SGR01';
+      if (matchedStateKey == 'Johor') return 'JHR02'; // JB
+      if (matchedStateKey == 'Kedah') return 'KDH01'; // Alor Setar
+      if (matchedStateKey == 'Kelantan') return 'KTN01'; // KB
+      if (matchedStateKey == 'Melaka') return 'MLK01';
+      if (matchedStateKey == 'Negeri Sembilan') return 'NGS02'; // Seremban
+      if (matchedStateKey == 'Pahang') return 'PHG02'; // Kuantan
+      if (matchedStateKey == 'Perak') return 'PRK02'; // Ipoh
+      if (matchedStateKey == 'Perlis') return 'PLS01';
+      if (matchedStateKey == 'Pulau Pinang') return 'PNG01';
+      if (matchedStateKey == 'Sabah') return 'SBH07'; // KK
+      if (matchedStateKey == 'Sarawak') return 'SWK08'; // Kuching
+      if (matchedStateKey == 'Terengganu') return 'TRG01'; // KT
+    }
+
+    return 'WLY01'; // Absolute fallback
   }
 }
