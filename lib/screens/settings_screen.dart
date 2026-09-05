@@ -7,6 +7,7 @@ import '../utils/jakim_zones.dart';
 import '../services/location_service.dart';
 import '../services/notification_service.dart';
 import '../theme.dart';
+import 'package:geolocator/geolocator.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -212,6 +213,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       value: provider.useAutoDetect,
                       onChanged: (val) {
                         provider.setUseAutoDetect(val);
+                      },
+                    ),
+                    const Divider(),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.security, color: AppTheme.petronasGreen),
+                      title: const Text('App Permissions'),
+                      subtitle: const Text('Manage Location and Notification access in System Settings.'),
+                      trailing: const Icon(Icons.open_in_new, size: 16),
+                      onTap: () async {
+                        await Geolocator.openAppSettings();
                       },
                     ),
                     if (!provider.useAutoDetect) ...[

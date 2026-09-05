@@ -9,7 +9,7 @@ import '../services/notification_service.dart';
 
 class PrayerProvider with ChangeNotifier {
   List<PrayerTime> _prayerTimes = [];
-  bool _isLoading = true;
+  bool _isLoading = false;
   String _errorMessage = '';
   LocationResult? _locationResult;
   bool _useAutoDetect = true;

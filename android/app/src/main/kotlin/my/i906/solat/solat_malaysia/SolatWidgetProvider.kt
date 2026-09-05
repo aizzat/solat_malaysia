@@ -16,6 +16,9 @@ class SolatWidgetProvider : HomeWidgetProvider() {
     
     companion object {
         const val ACTION_EXACT_UPDATE = "my.i906.solat.solat_malaysia.ACTION_EXACT_UPDATE"
+        // Use distinct request codes per alarm slot to prevent PendingIntent collisions
+        const val ALARM_REQUEST_CODE = 1001
+        const val FALLBACK_ALARM_REQUEST_CODE = 1002
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -34,7 +37,7 @@ class SolatWidgetProvider : HomeWidgetProvider() {
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray, widgetData: SharedPreferences) {
         val now = System.currentTimeMillis()
         
-        // Read all timestamps
+        // Read all timestamps — today's prayers + tomorrow's Fajr as a rollover sentinel
         val prayers = listOf(
             Pair("Fajr", widgetData.getLong("fajr_ts", 0L)),
             Pair("Sunrise", widgetData.getLong("sunrise_ts", 0L)),
@@ -45,8 +48,8 @@ class SolatWidgetProvider : HomeWidgetProvider() {
             Pair("Fajr", widgetData.getLong("next_fajr_ts", 0L))
         )
         
-        // Find next prayer
-        var nextPrayerName = "Next Prayer"
+        // Find next prayer (first timestamp strictly in the future)
+        var nextPrayerName = ""
         var nextPrayerTimestamp = 0L
         for (prayer in prayers) {
             if (prayer.second > now) {
@@ -55,10 +58,17 @@ class SolatWidgetProvider : HomeWidgetProvider() {
                 break
             }
         }
-        
-        // Schedule exact alarm for next prayer update
+
         if (nextPrayerTimestamp > 0L) {
-            scheduleExactAlarm(context, nextPrayerTimestamp)
+            // Schedule exact alarm at the next prayer time to refresh the widget
+            scheduleExactAlarm(context, nextPrayerTimestamp, ALARM_REQUEST_CODE)
+        } else {
+            // All stored timestamps (including next_fajr_ts) have passed —
+            // data is stale. Schedule a fallback check in 1 hour so WorkManager
+            // has time to fetch fresh data and push it to SharedPreferences.
+            val fallbackTime = now + (60 * 60 * 1000L) // 1 hour from now
+            scheduleExactAlarm(context, fallbackTime, FALLBACK_ALARM_REQUEST_CODE)
+            Log.w("SolatWidgetProvider", "All prayer timestamps expired. Scheduled fallback refresh in 1 hour.")
         }
 
         for (appWidgetId in appWidgetIds) {
@@ -73,9 +83,10 @@ class SolatWidgetProvider : HomeWidgetProvider() {
 
                 setTextViewText(R.id.widget_hijri_date, hijriDate)
                 setTextViewText(R.id.widget_location, location)
-                setTextViewText(R.id.widget_next_prayer_name, nextPrayerName)
                 
                 if (nextPrayerTimestamp > 0L) {
+                    // Valid next prayer found — show name and live countdown
+                    setTextViewText(R.id.widget_next_prayer_name, nextPrayerName)
                     val timeDiff = nextPrayerTimestamp - System.currentTimeMillis()
                     val base = android.os.SystemClock.elapsedRealtime() + timeDiff
                     setChronometer(R.id.widget_next_prayer_countdown, base, "%s", true)
@@ -83,7 +94,9 @@ class SolatWidgetProvider : HomeWidgetProvider() {
                         setChronometerCountDown(R.id.widget_next_prayer_countdown, true)
                     }
                 } else {
-                    setChronometer(R.id.widget_next_prayer_countdown, android.os.SystemClock.elapsedRealtime(), "--:--", false)
+                    // Stale data — show a friendly "Updating..." message instead of blank
+                    setTextViewText(R.id.widget_next_prayer_name, "Updating...")
+                    setChronometer(R.id.widget_next_prayer_countdown, android.os.SystemClock.elapsedRealtime(), "--:--:--", false)
                 }
                 
                 setTextViewText(R.id.widget_fajr, fajr)
@@ -100,14 +113,14 @@ class SolatWidgetProvider : HomeWidgetProvider() {
         }
     }
 
-    private fun scheduleExactAlarm(context: Context, timestamp: Long) {
+    private fun scheduleExactAlarm(context: Context, timestamp: Long, requestCode: Int) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val intent = Intent(context, SolatWidgetProvider::class.java).apply {
             action = ACTION_EXACT_UPDATE
         }
         val pendingIntent = PendingIntent.getBroadcast(
             context,
-            0,
+            requestCode,
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )

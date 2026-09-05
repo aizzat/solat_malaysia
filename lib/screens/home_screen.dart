@@ -4,7 +4,6 @@ import 'package:intl/intl.dart';
 import 'package:hijri/hijri_calendar.dart';
 import 'dart:async';
 import '../providers/prayer_provider.dart';
-import '../models/prayer_time.dart';
 import '../services/notification_service.dart';
 import '../theme.dart';
 
@@ -18,15 +17,20 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   Timer? _timer;
   DateTime _now = DateTime.now();
+  // Guard to avoid calling fetchData() more than once per end-of-day cycle
+  bool _autoRefreshedForTomorrow = false;
 
   @override
   void initState() {
     super.initState();
-    NotificationService.requestPermissions();
+    // (Notification permission moved to main.dart so location is asked first)
+
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) return;
       setState(() {
         _now = DateTime.now();
       });
+      _checkEndOfDayAutoRefresh();
     });
   }
 
@@ -35,6 +39,29 @@ class _HomeScreenState extends State<HomeScreen> {
     _timer?.cancel();
     super.dispose();
   }
+
+  /// When all today's prayers have passed, proactively fetch tomorrow's data
+  /// so the widget gets fresh timestamps immediately after Isha.
+  void _checkEndOfDayAutoRefresh() {
+    if (!mounted) return;
+    final provider = context.read<PrayerProvider>();
+    if (provider.isLoading || provider.prayerTimes.isEmpty) return;
+
+    final todayPrayer = provider.getTodayPrayer();
+    if (todayPrayer == null) return;
+
+    // All prayers including Isha have passed
+    if (_now.isAfter(todayPrayer.isha) && !_autoRefreshedForTomorrow) {
+      _autoRefreshedForTomorrow = true;
+      provider.fetchData();
+    }
+
+    // Reset the guard at midnight so next day it can trigger again
+    if (_now.hour == 0 && _now.minute == 0 && _now.second < 2) {
+      _autoRefreshedForTomorrow = false;
+    }
+  }
+
 
   String _formatDuration(Duration duration) {
     if (duration.isNegative) return "00:00:00";
@@ -104,6 +131,11 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
           );
+        }
+
+        // Provider initialised but no data yet (first frame before init fires)
+        if (provider.prayerTimes.isEmpty) {
+          return const Center(child: CircularProgressIndicator(color: AppTheme.petronasGreen));
         }
 
         final todayPrayer = provider.getTodayPrayer();

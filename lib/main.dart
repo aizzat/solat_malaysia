@@ -6,6 +6,7 @@ import 'services/update_service.dart';
 import 'screens/about_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/settings_screen.dart';
+import 'screens/qibla_screen.dart';
 import 'providers/prayer_provider.dart';
 import 'providers/theme_provider.dart';
 import 'services/notification_service.dart';
@@ -39,7 +40,7 @@ void main() async {
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => PrayerProvider()..init()),
+        ChangeNotifierProvider(create: (_) => PrayerProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
       ],
       child: const SolatMalaysiaApp(),
@@ -79,8 +80,18 @@ class _MainScreenState extends State<MainScreen> {
   @override
   void initState() {
     super.initState();
+    // Defer both init() and update check until after the first frame.
+    // This guarantees the Android Activity is fully resumed before
+    // Geolocator.requestPermission() is called — fixing the first-install
+    // blank screen where the permission dialog never appeared.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkForUpdates();
+      Future.delayed(const Duration(milliseconds: 500), () async {
+        if (mounted) {
+          await context.read<PrayerProvider>().init();
+          await NotificationService.requestPermissions();
+          _checkForUpdates();
+        }
+      });
     });
   }
 
@@ -115,6 +126,7 @@ class _MainScreenState extends State<MainScreen> {
 
   static const List<Widget> _pages = <Widget>[
     HomeScreen(),
+    QiblaScreen(),
     SettingsScreen(),
     AboutScreen(),
   ];
@@ -139,6 +151,10 @@ class _MainScreenState extends State<MainScreen> {
             label: 'Home',
           ),
           BottomNavigationBarItem(
+            icon: Icon(Icons.explore),
+            label: 'Qibla',
+          ),
+          BottomNavigationBarItem(
             icon: Icon(Icons.settings),
             label: 'Settings',
           ),
@@ -149,6 +165,8 @@ class _MainScreenState extends State<MainScreen> {
         ],
         currentIndex: _selectedIndex,
         selectedItemColor: AppTheme.petronasGreen,
+        unselectedItemColor: Colors.grey.shade600,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         onTap: _onItemTapped,
       ),
     );
