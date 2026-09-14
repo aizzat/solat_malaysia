@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:home_widget/home_widget.dart';
@@ -28,11 +29,11 @@ class PrayerProvider with ChangeNotifier {
 
   PrayerProvider();
 
-  Future<void> init() async {
-    await _loadPreferences();
+  Future<void> init({bool isBackground = false}) async {
+    await _loadPreferences(isBackground: isBackground);
   }
 
-  Future<void> _loadPreferences() async {
+  Future<void> _loadPreferences({bool isBackground = false}) async {
     final prefs = await SharedPreferences.getInstance();
     _useAutoDetect = prefs.getBool('useAutoDetect') ?? true;
     _use24HourFormat = prefs.getBool('use24HourFormat') ?? false;
@@ -47,8 +48,49 @@ class PrayerProvider with ChangeNotifier {
       _manualLng = lng;
       _manualCity = city;
     }
+
+    // Restore cached location for instant offline display & background tasks
+    final cachedCity = prefs.getString('cached_location_city');
+    final cachedZone = prefs.getString('cached_location_zone');
+    final cachedLat = prefs.getDouble('cached_location_lat');
+    final cachedLng = prefs.getDouble('cached_location_lng');
+    final cachedIsMalaysia = prefs.getBool('cached_location_is_malaysia') ?? true;
+    final cachedCountry = prefs.getString('cached_location_country') ?? 'Malaysia';
+    if (cachedCity != null || cachedZone != null) {
+      _locationResult = LocationResult(
+        isMalaysia: cachedIsMalaysia,
+        jakimZoneCode: cachedZone,
+        city: cachedCity,
+        country: cachedCountry,
+        latitude: cachedLat,
+        longitude: cachedLng,
+      );
+    }
+
+    // Restore cached monthly prayer times for offline startup
+    final cachedTimesJson = prefs.getString('cached_prayer_times');
+    if (cachedTimesJson != null && cachedTimesJson.isNotEmpty) {
+      try {
+        final List<dynamic> decoded = jsonDecode(cachedTimesJson);
+        _prayerTimes = decoded
+            .map((item) => PrayerTime.fromJson(item as Map<String, dynamic>))
+            .toList();
+      } catch (e) {
+        debugPrint('Error restoring cached prayer times: $e');
+      }
+    }
+
+    // Notify listeners immediately so cached prayer times render instantly on startup without waiting for network
+    if (_prayerTimes.isNotEmpty) {
+      notifyListeners();
+    }
+
+    if (isBackground && _prayerTimes.isNotEmpty) {
+      // In background, refresh the widget from cache right away
+      await _updateHomeWidget();
+    }
     
-    await fetchData();
+    await fetchData(isBackground: isBackground);
   }
 
   Future<void> setUseAutoDetect(bool value) async {
@@ -92,23 +134,73 @@ class PrayerProvider with ChangeNotifier {
     if (!_useAutoDetect) fetchData();
   }
 
-  Future<void> fetchData() async {
+  Future<void> fetchData({bool isBackground = false}) async {
     _isLoading = true;
     _errorMessage = '';
     notifyListeners();
 
     try {
       if (_useAutoDetect) {
-        final locationService = LocationService();
-        _locationResult = await locationService.determinePosition();
+        if (isBackground) {
+          // Background workers cannot safely request GPS permissions without UI.
+          // Use the cached zone/location or fallback zone.
+          final zone = _locationResult?.jakimZoneCode ?? _manualJakimZone;
+          if (_locationResult?.isMalaysia != false && zone.isNotEmpty) {
+            _prayerTimes = await ApiService.getJakimPrayerTimes(zone);
+          } else if (_locationResult?.latitude != null && _locationResult?.longitude != null) {
+            _prayerTimes = await ApiService.getAladhanPrayerTimes(
+              _locationResult!.latitude!,
+              _locationResult!.longitude!,
+            );
+          }
+        } else {
+          // Foreground app: determine location via GPS
+          try {
+            final locationService = LocationService();
+            _locationResult = await locationService.determinePosition();
 
-        if (_locationResult!.isMalaysia && _locationResult!.jakimZoneCode != null) {
-          _prayerTimes = await ApiService.getJakimPrayerTimes(_locationResult!.jakimZoneCode!);
-        } else if (_locationResult!.latitude != null && _locationResult!.longitude != null) {
-          _prayerTimes = await ApiService.getAladhanPrayerTimes(
-            _locationResult!.latitude!, 
-            _locationResult!.longitude!
-          );
+            // Cache the location result for offline/background use
+            final prefs = await SharedPreferences.getInstance();
+            if (_locationResult?.city != null) {
+              await prefs.setString('cached_location_city', _locationResult!.city!);
+            }
+            if (_locationResult?.jakimZoneCode != null) {
+              await prefs.setString('cached_location_zone', _locationResult!.jakimZoneCode!);
+            }
+            if (_locationResult?.country != null) {
+              await prefs.setString('cached_location_country', _locationResult!.country!);
+            }
+            if (_locationResult?.latitude != null) {
+              await prefs.setDouble('cached_location_lat', _locationResult!.latitude!);
+            }
+            if (_locationResult?.longitude != null) {
+              await prefs.setDouble('cached_location_lng', _locationResult!.longitude!);
+            }
+            await prefs.setBool('cached_location_is_malaysia', _locationResult?.isMalaysia ?? true);
+          } catch (locErr) {
+            debugPrint('Location determination error: $locErr');
+            // If GPS failed, fall back to cached location or manual zone
+            if (_locationResult == null) {
+              final prefs = await SharedPreferences.getInstance();
+              final cachedZone = prefs.getString('cached_location_zone') ?? _manualJakimZone;
+              final cachedCity = prefs.getString('cached_location_city') ?? 'Zone: $cachedZone';
+              _locationResult = LocationResult(
+                isMalaysia: true,
+                jakimZoneCode: cachedZone,
+                city: cachedCity,
+                country: 'Malaysia',
+              );
+            }
+          }
+
+          if (_locationResult != null && _locationResult!.isMalaysia && _locationResult!.jakimZoneCode != null) {
+            _prayerTimes = await ApiService.getJakimPrayerTimes(_locationResult!.jakimZoneCode!);
+          } else if (_locationResult != null && _locationResult!.latitude != null && _locationResult!.longitude != null) {
+            _prayerTimes = await ApiService.getAladhanPrayerTimes(
+              _locationResult!.latitude!, 
+              _locationResult!.longitude!,
+            );
+          }
         }
       } else {
         if (_manualLat != null && _manualLng != null) {
@@ -132,8 +224,18 @@ class PrayerProvider with ChangeNotifier {
           );
         }
       }
+
+      // If fetch succeeded, cache the 30-day prayer times to disk
+      if (_prayerTimes.isNotEmpty) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(
+          'cached_prayer_times',
+          jsonEncode(_prayerTimes.map((p) => p.toJson()).toList()),
+        );
+      }
     } catch (e) {
       _errorMessage = e.toString();
+      debugPrint('Error fetching prayer times: $e');
     } finally {
       _isLoading = false;
       if (_prayerTimes.isNotEmpty) {
@@ -144,47 +246,60 @@ class PrayerProvider with ChangeNotifier {
     }
   }
 
+  String _formatTime(DateTime t) {
+    if (_use24HourFormat) {
+      return '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+    } else {
+      int h = t.hour;
+      final int hour12 = h == 0 ? 12 : (h > 12 ? h - 12 : h);
+      final String amPm = h >= 12 ? 'PM' : 'AM';
+      return '${hour12.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')} $amPm';
+    }
+  }
+
   Future<void> _updateHomeWidget() async {
     try {
       final todayPrayer = getTodayPrayer();
       if (todayPrayer == null) return;
 
       final now = DateTime.now();
-      final prayers = [
-        {'name': 'Fajr', 'time': todayPrayer.fajr},
-        {'name': 'Sunrise', 'time': todayPrayer.sunrise},
-        {'name': 'Dhuhr', 'time': todayPrayer.dhuhr},
-        {'name': 'Asr', 'time': todayPrayer.asr},
-        {'name': 'Maghrib', 'time': todayPrayer.maghrib},
-        {'name': 'Isha', 'time': todayPrayer.isha},
-      ];
-
-      Map<String, dynamic>? nextPrayer;
-      for (var p in prayers) {
-        if ((p['time'] as DateTime).isAfter(now)) {
-          nextPrayer = p;
-          break;
-        }
-      }
-      nextPrayer ??= {'name': 'Fajr', 'time': todayPrayer.fajr.add(const Duration(days: 1))};
-
-      final timeFormat = (DateTime t) {
-        if (_use24HourFormat) {
-          return '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
-        } else {
-          int h = t.hour;
-          final int hour12 = h == 0 ? 12 : (h > 12 ? h - 12 : h);
-          final String amPm = h >= 12 ? 'PM' : 'AM';
-          return '${hour12.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')} $amPm';
-        }
-      };
-
       final hijriDate = HijriCalendar.fromDate(now);
       final hijriString = '${hijriDate.hDay} ${hijriDate.longMonthName} ${hijriDate.hYear}H';
 
-      await HomeWidget.saveWidgetData<String>('location', _locationResult?.city ?? 'Unknown Location');
+      // Fallback location name: never leave blank or "Unknown Location" if we have any info
+      String locationName = _locationResult?.city ?? _locationResult?.jakimZoneCode ?? _manualCity ?? _manualJakimZone;
+      if (locationName.trim().isEmpty || locationName == 'Unknown Location') {
+        locationName = 'Malaysia';
+      }
+
+      // Serialize 30-day schedule so the native Android widget can update autonomously
+      final scheduleList = _prayerTimes.map((pt) {
+        final dateKey = '${pt.date.year.toString().padLeft(4, '0')}-${pt.date.month.toString().padLeft(2, '0')}-${pt.date.day.toString().padLeft(2, '0')}';
+        final dayHijri = HijriCalendar.fromDate(pt.date);
+        final dayHijriStr = '${dayHijri.hDay} ${dayHijri.longMonthName} ${dayHijri.hYear}H';
+        return {
+          'date': dateKey,
+          'hijri': dayHijriStr,
+          'fajr': _formatTime(pt.fajr),
+          'fajr_ts': pt.fajr.millisecondsSinceEpoch,
+          'sunrise': _formatTime(pt.sunrise),
+          'sunrise_ts': pt.sunrise.millisecondsSinceEpoch,
+          'dhuhr': _formatTime(pt.dhuhr),
+          'dhuhr_ts': pt.dhuhr.millisecondsSinceEpoch,
+          'asr': _formatTime(pt.asr),
+          'asr_ts': pt.asr.millisecondsSinceEpoch,
+          'maghrib': _formatTime(pt.maghrib),
+          'maghrib_ts': pt.maghrib.millisecondsSinceEpoch,
+          'isha': _formatTime(pt.isha),
+          'isha_ts': pt.isha.millisecondsSinceEpoch,
+        };
+      }).toList();
+
+      await HomeWidget.saveWidgetData<String>('location', locationName);
       await HomeWidget.saveWidgetData<String>('hijri_date', hijriString);
+      await HomeWidget.saveWidgetData<String>('prayer_schedule', jsonEncode(scheduleList));
       
+      // Individual keys for today (backward compatibility and direct read)
       await HomeWidget.saveWidgetData<int>('fajr_ts', todayPrayer.fajr.millisecondsSinceEpoch);
       await HomeWidget.saveWidgetData<int>('sunrise_ts', todayPrayer.sunrise.millisecondsSinceEpoch);
       await HomeWidget.saveWidgetData<int>('dhuhr_ts', todayPrayer.dhuhr.millisecondsSinceEpoch);
@@ -193,11 +308,11 @@ class PrayerProvider with ChangeNotifier {
       await HomeWidget.saveWidgetData<int>('isha_ts', todayPrayer.isha.millisecondsSinceEpoch);
       await HomeWidget.saveWidgetData<int>('next_fajr_ts', todayPrayer.fajr.add(const Duration(days: 1)).millisecondsSinceEpoch);
       
-      await HomeWidget.saveWidgetData<String>('fajr', timeFormat(todayPrayer.fajr));
-      await HomeWidget.saveWidgetData<String>('dhuhr', timeFormat(todayPrayer.dhuhr));
-      await HomeWidget.saveWidgetData<String>('asr', timeFormat(todayPrayer.asr));
-      await HomeWidget.saveWidgetData<String>('maghrib', timeFormat(todayPrayer.maghrib));
-      await HomeWidget.saveWidgetData<String>('isha', timeFormat(todayPrayer.isha));
+      await HomeWidget.saveWidgetData<String>('fajr', _formatTime(todayPrayer.fajr));
+      await HomeWidget.saveWidgetData<String>('dhuhr', _formatTime(todayPrayer.dhuhr));
+      await HomeWidget.saveWidgetData<String>('asr', _formatTime(todayPrayer.asr));
+      await HomeWidget.saveWidgetData<String>('maghrib', _formatTime(todayPrayer.maghrib));
+      await HomeWidget.saveWidgetData<String>('isha', _formatTime(todayPrayer.isha));
       
       await HomeWidget.updateWidget(
         name: 'SolatWidgetProvider',
@@ -220,3 +335,4 @@ class PrayerProvider with ChangeNotifier {
     return _prayerTimes.first; 
   }
 }
+

@@ -55,4 +55,28 @@ class PrayerTime {
       isha: parseTime(json['Isha']),
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'date': date.millisecondsSinceEpoch,
+      'fajr': fajr.millisecondsSinceEpoch,
+      'sunrise': sunrise.millisecondsSinceEpoch,
+      'dhuhr': dhuhr.millisecondsSinceEpoch,
+      'asr': asr.millisecondsSinceEpoch,
+      'maghrib': maghrib.millisecondsSinceEpoch,
+      'isha': isha.millisecondsSinceEpoch,
+    };
+  }
+
+  factory PrayerTime.fromJson(Map<String, dynamic> json) {
+    return PrayerTime(
+      date: DateTime.fromMillisecondsSinceEpoch(json['date'] as int),
+      fajr: DateTime.fromMillisecondsSinceEpoch(json['fajr'] as int),
+      sunrise: DateTime.fromMillisecondsSinceEpoch(json['sunrise'] as int),
+      dhuhr: DateTime.fromMillisecondsSinceEpoch(json['dhuhr'] as int),
+      asr: DateTime.fromMillisecondsSinceEpoch(json['asr'] as int),
+      maghrib: DateTime.fromMillisecondsSinceEpoch(json['maghrib'] as int),
+      isha: DateTime.fromMillisecondsSinceEpoch(json['isha'] as int),
+    );
+  }
 }

@@ -11,76 +11,170 @@ import android.os.Build
 import android.util.Log
 import es.antonborri.home_widget.HomeWidgetProvider
 import android.content.ComponentName
+import org.json.JSONArray
+import org.json.JSONObject
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 
 class SolatWidgetProvider : HomeWidgetProvider() {
     
     companion object {
         const val ACTION_EXACT_UPDATE = "my.i906.solat.solat_malaysia.ACTION_EXACT_UPDATE"
+        // SharedPreferences name used by Flutter home_widget package
+        const val PREFERENCES = "HomeWidgetPreferences"
         // Use distinct request codes per alarm slot to prevent PendingIntent collisions
         const val ALARM_REQUEST_CODE = 1001
         const val FALLBACK_ALARM_REQUEST_CODE = 1002
     }
 
+    private fun getWidgetPreferences(context: Context): SharedPreferences {
+        return context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
+    }
+
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
-        if (intent.action == ACTION_EXACT_UPDATE) {
+        val action = intent.action
+        if (action == ACTION_EXACT_UPDATE ||
+            action == Intent.ACTION_BOOT_COMPLETED ||
+            action == Intent.ACTION_MY_PACKAGE_REPLACED ||
+            action == AppWidgetManager.ACTION_APPWIDGET_UPDATE) {
             val appWidgetManager = AppWidgetManager.getInstance(context)
             val componentName = ComponentName(context, SolatWidgetProvider::class.java)
             val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
             
-            // Re-read data and update widgets immediately
-            val widgetData = context.getSharedPreferences("es.antonborri.home_widget.Preferences", Context.MODE_PRIVATE)
+            // Re-read data from the correct SharedPreferences and update widgets immediately
+            val widgetData = getWidgetPreferences(context)
             onUpdate(context, appWidgetManager, appWidgetIds, widgetData)
         }
     }
 
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray, widgetData: SharedPreferences) {
+        if (appWidgetIds.isEmpty()) return
         val now = System.currentTimeMillis()
         
-        // Read all timestamps — today's prayers + tomorrow's Fajr as a rollover sentinel
-        val prayers = listOf(
-            Pair("Fajr", widgetData.getLong("fajr_ts", 0L)),
-            Pair("Sunrise", widgetData.getLong("sunrise_ts", 0L)),
-            Pair("Dhuhr", widgetData.getLong("dhuhr_ts", 0L)),
-            Pair("Asr", widgetData.getLong("asr_ts", 0L)),
-            Pair("Maghrib", widgetData.getLong("maghrib_ts", 0L)),
-            Pair("Isha", widgetData.getLong("isha_ts", 0L)),
-            Pair("Fajr", widgetData.getLong("next_fajr_ts", 0L))
-        )
-        
-        // Find next prayer (first timestamp strictly in the future)
+        // Base fallback values from SharedPreferences
+        var hijriDate = widgetData.getString("hijri_date", "") ?: ""
+        var location = widgetData.getString("location", "Malaysia") ?: "Malaysia"
+        if (location.trim().isEmpty() || location == "Unknown Location") {
+            location = "Malaysia"
+        }
+        var fajr = widgetData.getString("fajr", "--:--") ?: "--:--"
+        var dhuhr = widgetData.getString("dhuhr", "--:--") ?: "--:--"
+        var asr = widgetData.getString("asr", "--:--") ?: "--:--"
+        var maghrib = widgetData.getString("maghrib", "--:--") ?: "--:--"
+        var isha = widgetData.getString("isha", "--:--") ?: "--:--"
+
         var nextPrayerName = ""
         var nextPrayerTimestamp = 0L
-        for (prayer in prayers) {
-            if (prayer.second > now) {
-                nextPrayerName = prayer.first
-                nextPrayerTimestamp = prayer.second
-                break
+
+        // Parse full multi-day schedule if available
+        val scheduleJsonStr = widgetData.getString("prayer_schedule", null)
+        if (!scheduleJsonStr.isNullOrEmpty()) {
+            try {
+                val scheduleArray = JSONArray(scheduleJsonStr)
+                val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+                val todayKey = dateFormat.format(Date(now))
+
+                var todayObj: JSONObject? = null
+
+                // 1. Locate today's object to update display strings for today
+                for (i in 0 until scheduleArray.length()) {
+                    val dayObj = scheduleArray.getJSONObject(i)
+                    if (dayObj.optString("date") == todayKey) {
+                        todayObj = dayObj
+                        break
+                    }
+                }
+
+                // If today's object found, load today's prayer times and hijri
+                if (todayObj != null) {
+                    hijriDate = todayObj.optString("hijri", hijriDate)
+                    fajr = todayObj.optString("fajr", fajr)
+                    dhuhr = todayObj.optString("dhuhr", dhuhr)
+                    asr = todayObj.optString("asr", asr)
+                    maghrib = todayObj.optString("maghrib", maghrib)
+                    isha = todayObj.optString("isha", isha)
+                }
+
+                // 2. Find the earliest prayer timestamp strictly in the future
+                for (i in 0 until scheduleArray.length()) {
+                    val dayObj = scheduleArray.getJSONObject(i)
+                    val dayPrayers = listOf(
+                        Pair("Fajr", dayObj.optLong("fajr_ts", 0L)),
+                        Pair("Sunrise", dayObj.optLong("sunrise_ts", 0L)),
+                        Pair("Dhuhr", dayObj.optLong("dhuhr_ts", 0L)),
+                        Pair("Asr", dayObj.optLong("asr_ts", 0L)),
+                        Pair("Maghrib", dayObj.optLong("maghrib_ts", 0L)),
+                        Pair("Isha", dayObj.optLong("isha_ts", 0L))
+                    )
+
+                    for (prayer in dayPrayers) {
+                        if (prayer.second > now) {
+                            nextPrayerName = prayer.first
+                            nextPrayerTimestamp = prayer.second
+                            break
+                        }
+                    }
+                    if (nextPrayerTimestamp > 0L) {
+                        break
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("SolatWidgetProvider", "Error parsing prayer_schedule JSON", e)
             }
         }
 
+        // Backward compatibility fallback to individual single-day keys
+        if (nextPrayerTimestamp == 0L) {
+            val fallbackPrayers = listOf(
+                Pair("Fajr", widgetData.getLong("fajr_ts", 0L)),
+                Pair("Sunrise", widgetData.getLong("sunrise_ts", 0L)),
+                Pair("Dhuhr", widgetData.getLong("dhuhr_ts", 0L)),
+                Pair("Asr", widgetData.getLong("asr_ts", 0L)),
+                Pair("Maghrib", widgetData.getLong("maghrib_ts", 0L)),
+                Pair("Isha", widgetData.getLong("isha_ts", 0L)),
+                Pair("Fajr", widgetData.getLong("next_fajr_ts", 0L))
+            )
+            for (prayer in fallbackPrayers) {
+                if (prayer.second > now) {
+                    nextPrayerName = prayer.first
+                    nextPrayerTimestamp = prayer.second
+                    break
+                }
+            }
+        }
+
+        // Calculate midnight rollover timestamp (tomorrow 00:00:02)
+        val calendar = Calendar.getInstance().apply {
+            timeInMillis = now
+            add(Calendar.DAY_OF_YEAR, 1)
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 2)
+            set(Calendar.MILLISECOND, 0)
+        }
+        val midnightTimestamp = calendar.timeInMillis
+
         if (nextPrayerTimestamp > 0L) {
-            // Schedule exact alarm at the next prayer time to refresh the widget
-            scheduleExactAlarm(context, nextPrayerTimestamp, ALARM_REQUEST_CODE)
+            // Schedule alarm at the next prayer or midnight, whichever comes first.
+            // This ensures that after Isha, the widget wakes at midnight to flip to the new day's 5 prayer rows!
+            val alarmTargetTime = if (midnightTimestamp < nextPrayerTimestamp) {
+                midnightTimestamp
+            } else {
+                nextPrayerTimestamp
+            }
+            scheduleExactAlarm(context, alarmTargetTime, ALARM_REQUEST_CODE)
         } else {
-            // All stored timestamps (including next_fajr_ts) have passed —
-            // data is stale. Schedule a fallback check in 1 hour so WorkManager
-            // has time to fetch fresh data and push it to SharedPreferences.
-            val fallbackTime = now + (60 * 60 * 1000L) // 1 hour from now
+            // All stored timestamps have passed. Schedule a fallback check in 1 hour.
+            val fallbackTime = now + (60 * 60 * 1000L)
             scheduleExactAlarm(context, fallbackTime, FALLBACK_ALARM_REQUEST_CODE)
             Log.w("SolatWidgetProvider", "All prayer timestamps expired. Scheduled fallback refresh in 1 hour.")
         }
 
         for (appWidgetId in appWidgetIds) {
             val views = RemoteViews(context.packageName, R.layout.widget_layout).apply {
-                val hijriDate = widgetData.getString("hijri_date", "")
-                val location = widgetData.getString("location", "Unknown Location")
-                val fajr = widgetData.getString("fajr", "--:--")
-                val dhuhr = widgetData.getString("dhuhr", "--:--")
-                val asr = widgetData.getString("asr", "--:--")
-                val maghrib = widgetData.getString("maghrib", "--:--")
-                val isha = widgetData.getString("isha", "--:--")
-
                 setTextViewText(R.id.widget_hijri_date, hijriDate)
                 setTextViewText(R.id.widget_location, location)
                 
@@ -90,7 +184,7 @@ class SolatWidgetProvider : HomeWidgetProvider() {
                     val timeDiff = nextPrayerTimestamp - System.currentTimeMillis()
                     val base = android.os.SystemClock.elapsedRealtime() + timeDiff
                     setChronometer(R.id.widget_next_prayer_countdown, base, "%s", true)
-                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                         setChronometerCountDown(R.id.widget_next_prayer_countdown, true)
                     }
                 } else {

@@ -4,7 +4,6 @@ import 'package:intl/intl.dart';
 import 'package:hijri/hijri_calendar.dart';
 import 'dart:async';
 import '../providers/prayer_provider.dart';
-import '../services/notification_service.dart';
 import '../theme.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -77,7 +76,7 @@ class _HomeScreenState extends State<HomeScreen> {
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
       margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 16),
       decoration: BoxDecoration(
-        color: isNext ? AppTheme.petronasGreen.withOpacity(0.1) : Colors.transparent,
+        color: isNext ? AppTheme.petronasGreen.withValues(alpha: 0.1) : Colors.transparent,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: isNext ? AppTheme.petronasGreen : Colors.grey.shade300,
@@ -114,16 +113,19 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (context, provider, child) {
         final isDark = Theme.of(context).brightness == Brightness.dark;
 
-        if (provider.isLoading) {
+        // Only show full-screen loader if there is NO cached data available yet (e.g. first app launch)
+        if (provider.prayerTimes.isEmpty && provider.isLoading) {
           return const Center(child: CircularProgressIndicator(color: AppTheme.petronasGreen));
         }
 
-        if (provider.errorMessage.isNotEmpty) {
+        // Only show full-screen error if there is NO cached prayer data to display
+        if (provider.errorMessage.isNotEmpty && provider.prayerTimes.isEmpty) {
           return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text('Error: ${provider.errorMessage}'),
+                const SizedBox(height: 16),
                 ElevatedButton(
                   onPressed: () => provider.fetchData(),
                   child: const Text('Retry'),
@@ -133,7 +135,7 @@ class _HomeScreenState extends State<HomeScreen> {
           );
         }
 
-        // Provider initialised but no data yet (first frame before init fires)
+        // Provider initialised but no data yet
         if (provider.prayerTimes.isEmpty) {
           return const Center(child: CircularProgressIndicator(color: AppTheme.petronasGreen));
         }
@@ -227,7 +229,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: AppTheme.petronasGreen.withOpacity(0.3),
+                      color: AppTheme.petronasGreen.withValues(alpha: 0.3),
                       blurRadius: 10,
                       offset: const Offset(0, 5),
                     )
@@ -262,6 +264,50 @@ class _HomeScreenState extends State<HomeScreen> {
                 isDark,
                 provider,
               )),
+
+              // Subtle bottom loading indicator while refreshing data in background
+              if (provider.isLoading)
+                Padding(
+                  padding: const EdgeInsets.only(top: 20, bottom: 8),
+                  child: Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.08)
+                            : Colors.black.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.1)
+                              : Colors.black.withValues(alpha: 0.08),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppTheme.petronasGreen,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            'Updating prayer times...',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
         );

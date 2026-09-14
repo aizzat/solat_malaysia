@@ -16,9 +16,9 @@ import 'package:workmanager/workmanager.dart';
 void callbackDispatcher() {
   WidgetsFlutterBinding.ensureInitialized();
   Workmanager().executeTask((task, inputData) async {
-    // Run in background: fetch data and update widget/notifications
+    // Run in background: fetch data and update widget/notifications safely
     final provider = PrayerProvider();
-    await provider.init(); 
+    await provider.init(isBackground: true); 
     return Future.value(true);
   });
 }
@@ -29,12 +29,15 @@ void main() async {
   
   Workmanager().initialize(
     callbackDispatcher, 
-    isInDebugMode: false,
   );
   Workmanager().registerPeriodicTask(
     "solat_malaysia_background_update",
     "background_update",
     frequency: const Duration(hours: 4), // Update every 4 hours
+    existingWorkPolicy: ExistingPeriodicWorkPolicy.update,
+    constraints: Constraints(
+      networkType: NetworkType.connected,
+    ),
   );
 
   runApp(
