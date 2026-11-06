@@ -1,9 +1,22 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
+
+// Release signing: the key lives OUTSIDE the repository (never commit it).
+// Looked up in ~/.config/waktu-solat/key.properties, then android/key.properties.
+// If neither exists (e.g. someone forked the project) the build falls back to the debug key.
+val keyProps = Properties().apply {
+    listOf(
+        File(System.getProperty("user.home"), ".config/waktu-solat/key.properties"),
+        rootProject.file("key.properties"),
+    ).firstOrNull { it.exists() }?.inputStream()?.use { load(it) }
+}
+val hasReleaseKey = keyProps.getProperty("storeFile")?.let { File(it).exists() } == true
 
 android {
     namespace = "my.i906.solat.solat_malaysia"
@@ -31,11 +44,21 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        if (hasReleaseKey) {
+            create("release") {
+                storeFile = File(keyProps.getProperty("storeFile"))
+                storePassword = keyProps.getProperty("storePassword")
+                keyAlias = keyProps.getProperty("keyAlias")
+                keyPassword = keyProps.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (hasReleaseKey) signingConfigs.getByName("release")
+                            else signingConfigs.getByName("debug")
         }
     }
 }

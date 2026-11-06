@@ -6,7 +6,7 @@ Designed and developed by **dr. aizzat (maizzat.my)**.
 
 ## Download
 
-**Free, no ads, open source.** Get the latest Android APK from the guided download page:
+**Free, no ads, source-available.** Get the latest Android APK from the guided download page:
 
 👉 **https://www.research.maizzat.my/downloads/solat_malaysia_download.html**
 
@@ -70,5 +70,15 @@ flutter build apk --split-per-abi
 Developed by **dr. aizzat (maizzat.my)**
 
 ## License
-The code in this repository can be used for **personal use only**. 
-If you want to use this code for commercial purposes, please contact Dr. Aizzat.
+
+Copyright (c) 2026 Muhammad Aizzat Zakaria ([maizzat.my](https://www.maizzat.my)).
+
+- ✅ **Free for personal and other non-commercial use** — use it, study it, modify it, share it.
+- 🙏 **Credit is required**: keep the `Required Notice` line from [LICENSE](LICENSE) and point back to
+  <https://github.com/aizzat/solat_malaysia> — or simply **fork** this repository.
+- 💼 **Commercial use needs permission** — please email **maizzat2@gmail.com**.
+
+Licensed under the [PolyForm Noncommercial License 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0).
+This is a *source-available* license (not an OSI "open source" license). It covers the original code and assets
+of this project only; third-party components keep their own licenses (Flutter and pub.dev packages, Poppins font — SIL OFL,
+Natural Earth coastlines — public domain; prayer data from e-Solat JAKIM / Aladhan; satellite imagery © Esri, Maxar, Earthstar Geographics).

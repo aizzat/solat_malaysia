@@ -1,6 +1,6 @@
 ## Solat Malaysia v1.8.0 — free prayer times app, no ads
 
-A modern, futuristic prayer times app for Malaysia: official JAKIM times, Malay voice alerts, a real 3D Qibla globe, and a little robot that just wants to reach the mosque. **100% free. No ads. No sign-up. Open source.**
+A modern, futuristic prayer times app for Malaysia: official JAKIM times, Malay voice alerts, a real 3D Qibla globe, and a little robot that just wants to reach the mosque. **100% free. No ads. No sign-up. Source available.**
 
 ### ✨ What's new in v1.8.0
 * **Autonomous-car countdown ring** — the Home countdown is now a road with a top-view self-driving car, a planned path ahead and an animated LiDAR sweep. **Swipe the car** and it spins around like a fidget spinner (faster swipe = more turns, faster sensors), then eases back to its real position.
@@ -27,6 +27,9 @@ A modern, futuristic prayer times app for Malaysia: official JAKIM times, Malay 
 
 ### 🔄 Updating from an older version
 Just install this APK over your existing app — your settings are kept. Apps that already include the update check show an **"Update Available"** pop-up on launch whenever a newer release is published here, and its **Update Now** button opens the download page above.
+
+### 📜 License
+Free for **personal and other non-commercial use** under the [PolyForm Noncommercial License 1.0.0](https://github.com/aizzat/solat_malaysia/blob/main/LICENSE). Please **give credit to the original author** by pointing to this GitHub project (or simply fork it). **Commercial use needs permission — contact maizzat2@gmail.com.** The `LICENSE` file is attached to this release.
 
 ### 🤲 A small request
 This app is free and ad-free, built as a good deed for the ummah. If it helps you keep your prayers on time, the only thing I ask is a **doa for the developer** — may it become an *amal jariah* and an investment for the akhirat. *Jazakumullahu khairan.*
