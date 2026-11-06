@@ -2,9 +2,9 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_compass/flutter_compass.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart' hide Path;
+import '../ui/globe.dart';
 import '../providers/prayer_provider.dart';
+import '../providers/locale_provider.dart';
 import '../theme.dart';
 
 class QiblaScreen extends StatefulWidget {
@@ -20,7 +20,6 @@ class _QiblaScreenState extends State<QiblaScreen>
   static const double _kaabatLng = 39.8262;
 
   late AnimationController _pulseController;
-  final MapController _mapController = MapController();
 
   @override
   void initState() {
@@ -29,7 +28,14 @@ class _QiblaScreenState extends State<QiblaScreen>
       vsync: this,
       duration: const Duration(seconds: 2),
     )..repeat(reverse: true);
+    // Don't wait for the full prayer-time fetch: grab coordinates directly.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<PrayerProvider>().ensureCoordinates();
+    });
   }
+
+  String _t(BuildContext context, String key, [Map<String, String>? params]) =>
+      context.watch<LocaleProvider>().t(key, params);
 
   @override
   void dispose() {
@@ -66,8 +72,8 @@ class _QiblaScreenState extends State<QiblaScreen>
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final provider = context.watch<PrayerProvider>();
     final loc = provider.locationResult;
-    final userLat = loc?.latitude;
-    final userLng = loc?.longitude;
+    final userLat = provider.userLatitude;
+    final userLng = provider.userLongitude;
 
     return Column(
       children: [
@@ -86,14 +92,14 @@ class _QiblaScreenState extends State<QiblaScreen>
           ),
           child: Column(
             children: [
-              const Row(
+              Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.explore, color: AppTheme.petronasYellow, size: 26),
-                  SizedBox(width: 8),
+                  const Icon(Icons.explore, color: AppTheme.petronasYellow, size: 26),
+                  const SizedBox(width: 8),
                   Text(
-                    'Arah Qibla',
-                    style: TextStyle(
+                    _t(context, 'qibla.title'),
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
@@ -119,7 +125,7 @@ class _QiblaScreenState extends State<QiblaScreen>
               if (userLat != null && userLng != null) ...[
                 const SizedBox(height: 2),
                 Text(
-                  '${_distanceToMecca(userLat, userLng).toStringAsFixed(0)} km from Mecca',
+                  _t(context, 'qibla.kmFromMecca', {'km': _distanceToMecca(userLat, userLng).toStringAsFixed(0)}),
                   style: TextStyle(
                     color: AppTheme.petronasYellow.withValues(alpha: 0.9),
                     fontSize: 12,
@@ -138,14 +144,16 @@ class _QiblaScreenState extends State<QiblaScreen>
 
   Widget _buildBody(BuildContext context, bool isDark, double? userLat,
       double? userLng, PrayerProvider provider) {
-    if (provider.isLoading) {
-      return const Center(
+    // Only block on a spinner when we have NO coordinates yet. If we already
+    // know where the user is, show the compass while a refresh runs in background.
+    if ((userLat == null || userLng == null) && provider.isLoading) {
+      return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircularProgressIndicator(color: AppTheme.petronasGreen),
-            SizedBox(height: 16),
-            Text('Getting your location...'),
+            const CircularProgressIndicator(color: AppTheme.petronasGreen),
+            const SizedBox(height: 16),
+            Text(_t(context, 'qibla.gettingLocation')),
           ],
         ),
       );
@@ -160,19 +168,22 @@ class _QiblaScreenState extends State<QiblaScreen>
             children: [
               Icon(Icons.location_off, size: 64, color: Colors.grey.shade400),
               const SizedBox(height: 16),
-              const Text('Location Unavailable',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              Text(_t(context, 'qibla.unavailable'),
+                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
-              const Text(
-                'Qibla direction requires your GPS location.\nPlease enable location in Settings.',
+              Text(
+                _t(context, 'qibla.needsGps'),
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey),
+                style: const TextStyle(color: Colors.grey),
               ),
               const SizedBox(height: 24),
               FilledButton.icon(
-                onPressed: () => provider.fetchData(),
+                onPressed: () {
+                  provider.ensureCoordinates();
+                  provider.fetchData();
+                },
                 icon: const Icon(Icons.refresh),
-                label: const Text('Retry'),
+                label: Text(_t(context, 'qibla.retry')),
                 style: FilledButton.styleFrom(
                     backgroundColor: AppTheme.petronasGreen),
               ),
@@ -291,13 +302,13 @@ class _QiblaScreenState extends State<QiblaScreen>
               children: [
                 _infoTile(
                     icon: Icons.navigation,
-                    label: 'Qibla',
+                    label: _t(context, 'qibla.qibla'),
                     value: '${qiblaBearing.toStringAsFixed(1)}°',
                     isDark: isDark),
                 Container(width: 1, height: 44, color: Colors.grey.shade300),
                 _infoTile(
                     icon: Icons.compass_calibration,
-                    label: 'Heading',
+                    label: _t(context, 'qibla.heading'),
                     value: heading != null
                         ? '${heading.toStringAsFixed(1)}°'
                         : 'N/A',
@@ -305,7 +316,7 @@ class _QiblaScreenState extends State<QiblaScreen>
                 Container(width: 1, height: 44, color: Colors.grey.shade300),
                 _infoTile(
                     icon: Icons.place,
-                    label: 'Distance',
+                    label: _t(context, 'qibla.distance'),
                     value:
                         '${_distanceToMecca(userLat, userLng).toStringAsFixed(0)} km',
                     isDark: isDark),
@@ -344,10 +355,10 @@ class _QiblaScreenState extends State<QiblaScreen>
                 Flexible(
                   child: Text(
                     isAligned
-                        ? 'You are facing the Qibla!'
+                        ? _t(context, 'qibla.facing')
                         : heading != null
-                            ? 'Rotate phone until needle points up'
-                            : 'Point the top of your phone toward Mecca',
+                            ? _t(context, 'qibla.rotate')
+                            : _t(context, 'qibla.point'),
                     style: TextStyle(
                       color: isAligned ? AppTheme.petronasGreen : Colors.grey,
                       fontWeight:
@@ -377,7 +388,7 @@ class _QiblaScreenState extends State<QiblaScreen>
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    'Hold phone flat and level. The compass rose rotates so N always points to geographic North. The green needle points to Mecca.',
+                    _t(context, 'qibla.hint'),
                     style: TextStyle(
                       fontSize: 12,
                       color: isDark ? Colors.white70 : Colors.black87,
@@ -409,13 +420,13 @@ class _QiblaScreenState extends State<QiblaScreen>
           Icon(Icons.compass_calibration,
               size: 80, color: AppTheme.petronasGreen.withValues(alpha: 0.5)),
           const SizedBox(height: 20),
-          const Text('Compass Not Available',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+          Text(_t(context, 'qibla.noCompass'),
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
           const SizedBox(height: 12),
-          const Text(
-            'This device has no magnetometer.\nYour calculated Qibla bearing is:',
+          Text(
+            _t(context, 'qibla.noMagnetometer'),
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey),
+            style: const TextStyle(color: Colors.grey),
           ),
           const SizedBox(height: 24),
           Container(
@@ -427,8 +438,8 @@ class _QiblaScreenState extends State<QiblaScreen>
             ),
             child: Column(
               children: [
-                const Text('Qibla Direction',
-                    style: TextStyle(color: Colors.white70, fontSize: 14)),
+                Text(_t(context, 'qibla.direction'),
+                    style: const TextStyle(color: Colors.white70, fontSize: 14)),
                 const SizedBox(height: 8),
                 Text(
                   '${qiblaBearing.toStringAsFixed(1)}°',
@@ -438,11 +449,11 @@ class _QiblaScreenState extends State<QiblaScreen>
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                const Text('from North',
-                    style: TextStyle(color: Colors.white70, fontSize: 12)),
+                Text(_t(context, 'qibla.fromNorth'),
+                    style: const TextStyle(color: Colors.white70, fontSize: 12)),
                 const SizedBox(height: 6),
                 Text(
-                  '${_distanceToMecca(userLat, userLng).toStringAsFixed(0)} km from Mecca',
+                  _t(context, 'qibla.kmFromMecca', {'km': _distanceToMecca(userLat, userLng).toStringAsFixed(0)}),
                   style: TextStyle(
                     color: AppTheme.petronasYellow.withValues(alpha: 0.8),
                     fontSize: 13,
@@ -480,114 +491,13 @@ class _QiblaScreenState extends State<QiblaScreen>
   }
 
   Widget _buildMap(double userLat, double userLng, double? heading) {
-    return Column(
-      children: [
-        Container(
-          height: 260,
-          width: 260,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(color: AppTheme.petronasGreen, width: 3),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.15),
-            blurRadius: 12,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: FlutterMap(
-        mapController: _mapController,
-        options: MapOptions(
-          initialCenter: LatLng(userLat, userLng),
-          initialZoom: 2.5,
-          interactionOptions: const InteractionOptions(
-            flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
-          ),
-        ),
-        children: [
-          TileLayer(
-            urlTemplate: 'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
-            userAgentPackageName: 'my.i906.solat.solat_malaysia',
-          ),
-          PolylineLayer(
-            polylines: [
-              Polyline(
-                points: [
-                  LatLng(userLat, userLng),
-                  const LatLng(_kaabatLat, _kaabatLng),
-                ],
-                color: AppTheme.petronasGreen,
-                strokeWidth: 3.0,
-              ),
-            ],
-          ),
-          MarkerLayer(
-            markers: [
-              Marker(
-                point: LatLng(userLat, userLng),
-                width: 44,
-                height: 44,
-                child: heading != null
-                    ? Transform.rotate(
-                        angle: heading * math.pi / 180,
-                        child: const Icon(
-                          Icons.navigation,
-                          color: Colors.blueAccent,
-                          size: 32,
-                        ),
-                      )
-                    : const Icon(
-                        Icons.location_on,
-                        color: Colors.blueAccent,
-                        size: 32,
-                      ),
-              ),
-              Marker(
-                point: const LatLng(_kaabatLat, _kaabatLng),
-                width: 40,
-                height: 40,
-                child: const Center(child: Text('🕋', style: TextStyle(fontSize: 24))),
-              ),
-            ],
-          ),
-        ],
-      ),
-    ),
-    const SizedBox(height: 16),
-    Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        IconButton.filledTonal(
-          icon: const Icon(Icons.zoom_out),
-          onPressed: () {
-            final currentZoom = _mapController.camera.zoom;
-            _mapController.move(_mapController.camera.center, currentZoom - 1);
-          },
-        ),
-        const SizedBox(width: 16),
-        IconButton.filled(
-          icon: const Icon(Icons.my_location),
-          style: IconButton.styleFrom(
-            backgroundColor: AppTheme.petronasGreen,
-            foregroundColor: Colors.white,
-          ),
-          onPressed: () {
-            _mapController.move(LatLng(userLat, userLng), 10.0);
-          },
-        ),
-        const SizedBox(width: 16),
-        IconButton.filledTonal(
-          icon: const Icon(Icons.zoom_in),
-          onPressed: () {
-            final currentZoom = _mapController.camera.zoom;
-            _mapController.move(_mapController.camera.center, currentZoom + 1);
-          },
-        ),
-      ],
-    ),
-      ],
+    return QiblaGlobe(
+      userLat: userLat,
+      userLng: userLng,
+      kaabaLat: _kaabatLat,
+      kaabaLng: _kaabatLng,
+      heading: heading,
+      size: 300,
     );
   }
 }

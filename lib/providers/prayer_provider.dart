@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:hijri/hijri_calendar.dart';
+import '../l10n/app_strings.dart';
+import 'locale_provider.dart';
 import '../models/prayer_time.dart';
 import '../services/api_service.dart';
 import '../services/location_service.dart';
@@ -28,6 +30,37 @@ class PrayerProvider with ChangeNotifier {
   bool get use24HourFormat => _use24HourFormat;
 
   PrayerProvider();
+
+  double? _quickLat;
+  double? _quickLng;
+  bool _resolvingCoords = false;
+
+  /// Best-known coordinates for the Qibla compass, available even in manual-zone mode.
+  double? get userLatitude => _locationResult?.latitude ?? _manualLat ?? _quickLat;
+  double? get userLongitude => _locationResult?.longitude ?? _manualLng ?? _quickLng;
+
+  /// Resolve coordinates quickly (cached fix / low-accuracy GPS) without waiting
+  /// for the prayer-time fetch and reverse geocoding.
+  Future<void> ensureCoordinates() async {
+    if (userLatitude != null || _resolvingCoords) return;
+    _resolvingCoords = true;
+    try {
+      final pos = await LocationService.tryQuickPosition();
+      if (pos != null) {
+        _quickLat = pos.latitude;
+        _quickLng = pos.longitude;
+        notifyListeners();
+      }
+    } finally {
+      _resolvingCoords = false;
+    }
+  }
+
+  /// Re-render everything that carries text outside the Flutter UI after a language change.
+  Future<void> refreshLocalizedOutputs() async {
+    await _updateHomeWidget();
+    await rescheduleNotifications();
+  }
 
   Future<void> init({bool isBackground = false}) async {
     await _loadPreferences(isBackground: isBackground);
@@ -101,6 +134,14 @@ class PrayerProvider with ChangeNotifier {
     fetchData();
   }
 
+  /// Re-create the scheduled notifications from cached times, e.g. after the
+  /// notification sound changed (the sound is baked into each scheduled alarm).
+  Future<void> rescheduleNotifications() async {
+    if (_prayerTimes.isNotEmpty) {
+      await NotificationService.schedulePrayerNotifications(_prayerTimes);
+    }
+  }
+
   Future<void> setUse24HourFormat(bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('use24HourFormat', value);
@@ -158,6 +199,19 @@ class PrayerProvider with ChangeNotifier {
           try {
             final locationService = LocationService();
             _locationResult = await locationService.determinePosition();
+
+            // Geocoding can fail offline: keep Malaysians on their saved JAKIM zone.
+            if (_locationResult!.isMalaysia && _locationResult!.jakimZoneCode == null) {
+              final p = await SharedPreferences.getInstance();
+              _locationResult = LocationResult(
+                isMalaysia: true,
+                jakimZoneCode: p.getString('cached_location_zone') ?? _manualJakimZone,
+                country: 'Malaysia',
+                city: p.getString('cached_location_city'),
+                latitude: _locationResult!.latitude,
+                longitude: _locationResult!.longitude,
+              );
+            }
 
             // Cache the location result for offline/background use
             final prefs = await SharedPreferences.getInstance();
@@ -246,19 +300,22 @@ class PrayerProvider with ChangeNotifier {
     }
   }
 
+  String _lang = AppStrings.defaultLanguage;
+
   String _formatTime(DateTime t) {
     if (_use24HourFormat) {
       return '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
     } else {
       int h = t.hour;
       final int hour12 = h == 0 ? 12 : (h > 12 ? h - 12 : h);
-      final String amPm = h >= 12 ? 'PM' : 'AM';
+      final String amPm = AppStrings.get(_lang, h >= 12 ? 'widget.pm' : 'widget.am');
       return '${hour12.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')} $amPm';
     }
   }
 
   Future<void> _updateHomeWidget() async {
     try {
+      _lang = await LocaleProvider.savedLanguage();
       final todayPrayer = getTodayPrayer();
       if (todayPrayer == null) return;
 
@@ -294,6 +351,25 @@ class PrayerProvider with ChangeNotifier {
           'isha_ts': pt.isha.millisecondsSinceEpoch,
         };
       }).toList();
+
+      // Localised static labels for the native widget
+      for (final e in {
+        'lbl_next': 'widget.next',
+        'lbl_updating': 'widget.updating',
+        'lbl_fajr': 'widget.fajrLabel',
+        'lbl_dhuhr': 'widget.dhuhrLabel',
+        'lbl_asr': 'widget.asrLabel',
+        'lbl_maghrib': 'widget.maghribLabel',
+        'lbl_isha': 'widget.ishaLabel',
+        'name_Fajr': 'prayer.Fajr',
+        'name_Sunrise': 'prayer.Sunrise',
+        'name_Dhuhr': 'prayer.Dhuhr',
+        'name_Asr': 'prayer.Asr',
+        'name_Maghrib': 'prayer.Maghrib',
+        'name_Isha': 'prayer.Isha',
+      }.entries) {
+        await HomeWidget.saveWidgetData<String>(e.key, AppStrings.get(_lang, e.value));
+      }
 
       await HomeWidget.saveWidgetData<String>('location', locationName);
       await HomeWidget.saveWidgetData<String>('hijri_date', hijriString);

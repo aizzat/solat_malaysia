@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ThemeProvider with ChangeNotifier {
-  ThemeMode _themeMode = ThemeMode.system;
+  ThemeMode _themeMode = ThemeMode.dark;
   ThemeMode get themeMode => _themeMode;
 
   ThemeProvider() {
@@ -11,7 +11,7 @@ class ThemeProvider with ChangeNotifier {
 
   Future<void> _loadPreferences() async {
     final prefs = await SharedPreferences.getInstance();
-    final modeString = prefs.getString('themeMode') ?? 'system';
+    final modeString = prefs.getString('themeMode') ?? 'dark';
     
     switch (modeString) {
       case 'light':

@@ -176,11 +176,18 @@ class SolatWidgetProvider : HomeWidgetProvider() {
         for (appWidgetId in appWidgetIds) {
             val views = RemoteViews(context.packageName, R.layout.widget_layout).apply {
                 setTextViewText(R.id.widget_hijri_date, hijriDate)
+                // Localised static labels (written by the Flutter app; English fallback)
+                setTextViewText(R.id.widget_lbl_next, widgetData.getString("lbl_next", "NEXT PRAYER") ?: "NEXT PRAYER")
+                setTextViewText(R.id.widget_lbl_fajr, widgetData.getString("lbl_fajr", "FAJR") ?: "FAJR")
+                setTextViewText(R.id.widget_lbl_dhuhr, widgetData.getString("lbl_dhuhr", "DHUHR") ?: "DHUHR")
+                setTextViewText(R.id.widget_lbl_asr, widgetData.getString("lbl_asr", "ASR") ?: "ASR")
+                setTextViewText(R.id.widget_lbl_maghrib, widgetData.getString("lbl_maghrib", "MAGHRIB") ?: "MAGHRIB")
+                setTextViewText(R.id.widget_lbl_isha, widgetData.getString("lbl_isha", "ISHA") ?: "ISHA")
                 setTextViewText(R.id.widget_location, location)
                 
                 if (nextPrayerTimestamp > 0L) {
                     // Valid next prayer found — show name and live countdown
-                    setTextViewText(R.id.widget_next_prayer_name, nextPrayerName)
+                    setTextViewText(R.id.widget_next_prayer_name, widgetData.getString("name_$nextPrayerName", nextPrayerName) ?: nextPrayerName)
                     val timeDiff = nextPrayerTimestamp - System.currentTimeMillis()
                     val base = android.os.SystemClock.elapsedRealtime() + timeDiff
                     setChronometer(R.id.widget_next_prayer_countdown, base, "%s", true)
@@ -189,7 +196,7 @@ class SolatWidgetProvider : HomeWidgetProvider() {
                     }
                 } else {
                     // Stale data — show a friendly "Updating..." message instead of blank
-                    setTextViewText(R.id.widget_next_prayer_name, "Updating...")
+                    setTextViewText(R.id.widget_next_prayer_name, widgetData.getString("lbl_updating", "Updating...") ?: "Updating...")
                     setChronometer(R.id.widget_next_prayer_countdown, android.os.SystemClock.elapsedRealtime(), "--:--:--", false)
                 }
                 

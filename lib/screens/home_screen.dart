@@ -1,10 +1,14 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:hijri/hijri_calendar.dart';
 import 'dart:async';
 import '../providers/prayer_provider.dart';
+import '../providers/locale_provider.dart';
 import '../theme.dart';
+import '../ui/ds.dart';
+import 'dart:math' as math;
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -13,35 +17,83 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen>
+    with TickerProviderStateMixin {
   Timer? _timer;
-  DateTime _now = DateTime.now();
+  // Only the widgets listening to this rebuild every second (not the whole screen).
+  final ValueNotifier<DateTime> _now = ValueNotifier(DateTime.now());
+  late final AnimationController _pulse;
+  late final AnimationController _scan; // continuous LiDAR sweep
+  late final RingSpin _spin = RingSpin(vsync: this); // fidget-spinner car
+  final GlobalKey _ringKey = GlobalKey();
+  double _progressNow = 0;
   // Guard to avoid calling fetchData() more than once per end-of-day cycle
   bool _autoRefreshedForTomorrow = false;
 
   @override
   void initState() {
     super.initState();
-    // (Notification permission moved to main.dart so location is asked first)
+    _pulse = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2400),
+    )..repeat(reverse: true);
+    _scan = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2600),
+    )..repeat();
 
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted) return;
-      setState(() {
-        _now = DateTime.now();
-      });
-      _checkEndOfDayAutoRefresh();
+      _now.value = DateTime.now();
+      _checkEndOfDayAutoRefresh(_now.value);
     });
   }
 
   @override
   void dispose() {
     _timer?.cancel();
+    _pulse.dispose();
+    _scan.dispose();
+    _spin.dispose();
+    _now.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Honour the system "remove animations" setting.
+    if (MediaQuery.of(context).disableAnimations) {
+      _pulse.stop();
+      _pulse.value = 0.5;
+      _scan.stop();
+      _scan.value = 0.12;
+    } else if (!_pulse.isAnimating) {
+      _pulse.repeat(reverse: true);
+      _scan.repeat();
+    }
+  }
+
+  // ── Fidget-spinner interaction on the car ───────────────────────────────
+  double? _touchAngle(Offset global) {
+    final box = _ringKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null) return null;
+    final local = box.globalToLocal(global);
+    final c = box.size.center(Offset.zero);
+    return math.atan2(local.dy - c.dy, local.dx - c.dx);
+  }
+
+  /// Car position inside the ring box (same geometry as RingPainter).
+  Offset _carPosition(Size size) {
+    final c = size.center(Offset.zero);
+    final r = math.min(size.width, size.height) / 2 - 22;
+    final ang = -math.pi / 2 + 2 * math.pi * _progressNow + _spin.offset;
+    return c + Offset(math.cos(ang), math.sin(ang)) * r;
   }
 
   /// When all today's prayers have passed, proactively fetch tomorrow's data
   /// so the widget gets fresh timestamps immediately after Isha.
-  void _checkEndOfDayAutoRefresh() {
+  void _checkEndOfDayAutoRefresh(DateTime now) {
     if (!mounted) return;
     final provider = context.read<PrayerProvider>();
     if (provider.isLoading || provider.prayerTimes.isEmpty) return;
@@ -50,17 +102,16 @@ class _HomeScreenState extends State<HomeScreen> {
     if (todayPrayer == null) return;
 
     // All prayers including Isha have passed
-    if (_now.isAfter(todayPrayer.isha) && !_autoRefreshedForTomorrow) {
+    if (now.isAfter(todayPrayer.isha) && !_autoRefreshedForTomorrow) {
       _autoRefreshedForTomorrow = true;
       provider.fetchData();
     }
 
     // Reset the guard at midnight so next day it can trigger again
-    if (_now.hour == 0 && _now.minute == 0 && _now.second < 2) {
+    if (now.hour == 0 && now.minute == 0 && now.second < 2) {
       _autoRefreshedForTomorrow = false;
     }
   }
-
 
   String _formatDuration(Duration duration) {
     if (duration.isNegative) return "00:00:00";
@@ -70,48 +121,12 @@ class _HomeScreenState extends State<HomeScreen> {
     return "${twoDigits(duration.inHours)}:$twoDigitMinutes:$twoDigitSeconds";
   }
 
-  Widget _buildPrayerRow(String name, DateTime time, bool isNext, bool isDark, PrayerProvider provider) {
-    final formatString = provider.use24HourFormat ? 'HH:mm' : 'hh:mm a';
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-      margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 16),
-      decoration: BoxDecoration(
-        color: isNext ? AppTheme.petronasGreen.withValues(alpha: 0.1) : Colors.transparent,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: isNext ? AppTheme.petronasGreen : Colors.grey.shade300,
-          width: isNext ? 2 : 1,
-        ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            name,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: isNext ? FontWeight.bold : FontWeight.normal,
-              color: isNext ? AppTheme.petronasGreen : (isDark ? AppTheme.white : AppTheme.black),
-            ),
-          ),
-          Text(
-            DateFormat(formatString).format(time),
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: isNext ? FontWeight.bold : FontWeight.normal,
-              color: isNext ? AppTheme.petronasGreen : (isDark ? AppTheme.white : AppTheme.black),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
+    final l = context.watch<LocaleProvider>();
     return Consumer<PrayerProvider>(
       builder: (context, provider, child) {
-        final isDark = Theme.of(context).brightness == Brightness.dark;
+        final isDark = isDarkOf(context);
 
         // Only show full-screen loader if there is NO cached data available yet (e.g. first app launch)
         if (provider.prayerTimes.isEmpty && provider.isLoading) {
@@ -124,11 +139,11 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text('Error: ${provider.errorMessage}'),
+                Text(l.t('home.error', {'message': provider.errorMessage})),
                 const SizedBox(height: 16),
                 ElevatedButton(
                   onPressed: () => provider.fetchData(),
-                  child: const Text('Retry'),
+                  child: Text(l.t('home.retry')),
                 )
               ],
             ),
@@ -142,176 +157,345 @@ class _HomeScreenState extends State<HomeScreen> {
 
         final todayPrayer = provider.getTodayPrayer();
         if (todayPrayer == null) {
-          return const Center(child: Text('No prayer times available for today.'));
+          return Center(child: Text(l.t('home.noTimes')));
         }
 
-        // Determine next prayer
-        final prayers = [
-          {'name': 'Fajr', 'time': todayPrayer.fajr},
-          {'name': 'Sunrise', 'time': todayPrayer.sunrise},
-          {'name': 'Dhuhr', 'time': todayPrayer.dhuhr},
-          {'name': 'Asr', 'time': todayPrayer.asr},
-          {'name': 'Maghrib', 'time': todayPrayer.maghrib},
-          {'name': 'Isha', 'time': todayPrayer.isha},
+        final prayers = <_Prayer>[
+          _Prayer('Fajr', todayPrayer.fajr),
+          _Prayer('Sunrise', todayPrayer.sunrise),
+          _Prayer('Dhuhr', todayPrayer.dhuhr),
+          _Prayer('Asr', todayPrayer.asr),
+          _Prayer('Maghrib', todayPrayer.maghrib),
+          _Prayer('Isha', todayPrayer.isha),
         ];
 
-        Map<String, dynamic>? nextPrayer;
-        for (var p in prayers) {
-          if ((p['time'] as DateTime).isAfter(_now)) {
-            nextPrayer = p;
-            break;
-          }
-        }
-        // If all passed, next is Fajr tomorrow (simplification for UI)
-        nextPrayer ??= {'name': 'Fajr (Tomorrow)', 'time': todayPrayer.fajr.add(const Duration(days: 1))};
-
-        final durationToNext = (nextPrayer['time'] as DateTime).difference(_now);
-        final hijriDate = HijriCalendar.fromDate(_now);
-        final gregorianDate = DateFormat('EEEE, d MMMM y').format(_now);
-        
         final loc = provider.locationResult;
-        String locationStr = loc?.city ?? (loc?.country ?? 'Unknown Location');
+        final String locationStr =
+            loc?.city ?? (loc?.country ?? l.t('home.unknownLocation'));
+        final subtle = isDark ? Colors.white60 : Colors.black54;
 
         return RefreshIndicator(
           onRefresh: () => provider.fetchData(),
           color: AppTheme.petronasGreen,
-          child: ListView(
-            padding: const EdgeInsets.symmetric(vertical: 24),
-            children: [
-              // Date and Location Header
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Column(
-                  children: [
-                    Text(
-                      gregorianDate,
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
+          // Content is exactly one viewport tall, so the page itself never scrolls;
+          // the scroll view only exists to allow pull-to-refresh.
+          child: LayoutBuilder(
+            builder: (context, constraints) => SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              child: SizedBox(
+                height: constraints.maxHeight,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+                  child: Column(
+                    children: [
+                      // Thin progress line while refreshing in the background
+                      SizedBox(
+                        height: 3,
+                        child: provider.isLoading
+                            ? const LinearProgressIndicator(
+                                color: AppTheme.petronasGreen,
+                                backgroundColor: Colors.transparent,
+                              )
+                            : null,
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${hijriDate.hDay} ${hijriDate.longMonthName} ${hijriDate.hYear}H',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: isDark ? AppTheme.petronasGreen : AppTheme.petronasBlue,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.location_on, color: AppTheme.petronasYellow, size: 20),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            locationStr,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 32),
-              
-              // Countdown Card
-              Container(
-                margin: const EdgeInsets.symmetric(horizontal: 16),
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [AppTheme.petronasGreen, AppTheme.petronasBlue],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppTheme.petronasGreen.withValues(alpha: 0.3),
-                      blurRadius: 10,
-                      offset: const Offset(0, 5),
-                    )
-                  ],
-                ),
-                child: Column(
-                  children: [
-                    Text(
-                      'Time to ${nextPrayer['name']}',
-                      style: const TextStyle(color: AppTheme.white, fontSize: 16),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      _formatDuration(durationToNext),
-                      style: const TextStyle(
-                        color: AppTheme.petronasYellow,
-                        fontSize: 48,
-                        fontWeight: FontWeight.bold,
-                        fontFeatures: [FontFeature.tabularFigures()],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 32),
+                      const SizedBox(height: 6),
 
-              // Prayer Times List
-              ...prayers.map((p) => _buildPrayerRow(
-                p['name'] as String,
-                p['time'] as DateTime,
-                p['name'] == nextPrayer?['name'],
-                isDark,
-                provider,
-              )),
-
-              // Subtle bottom loading indicator while refreshing data in background
-              if (provider.isLoading)
-                Padding(
-                  padding: const EdgeInsets.only(top: 20, bottom: 8),
-                  child: Center(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: isDark
-                            ? Colors.white.withValues(alpha: 0.08)
-                            : Colors.black.withValues(alpha: 0.05),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: isDark
-                              ? Colors.white.withValues(alpha: 0.1)
-                              : Colors.black.withValues(alpha: 0.08),
+                      // ── Date + location header ─────────────────────────
+                      EnterAnimation(
+                        index: 0,
+                        child: ValueListenableBuilder<DateTime>(
+                          valueListenable: _now,
+                          builder: (context, now, _) {
+                            final hijri = HijriCalendar.fromDate(now);
+                            return Column(
+                              children: [
+                                Text(
+                                  DateFormat('EEEE, d MMMM y', l.language).format(now),
+                                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                                ),
+                                Text(
+                                  '${hijri.hDay} ${hijri.longMonthName} ${hijri.hYear}H',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: isDark ? AppTheme.petronasGreen : AppTheme.petronasBlue,
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
                         ),
                       ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const SizedBox(
-                            width: 14,
-                            height: 14,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: AppTheme.petronasGreen,
-                            ),
+                      const SizedBox(height: 8),
+                      EnterAnimation(
+                        index: 1,
+                        child: GlassPanel(
+                          radius: 30,
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.my_location, color: AppTheme.petronasYellow, size: 14),
+                              const SizedBox(width: 8),
+                              Flexible(
+                                child: Text(
+                                  locationStr,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(width: 10),
-                          Text(
-                            'Updating prayer times...',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                              color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
-                    ),
+                      const SizedBox(height: 4),
+
+                      // ── Countdown ring + prayer list (rebuild each second) ─
+                      Expanded(
+                        child: ValueListenableBuilder<DateTime>(
+                          valueListenable: _now,
+                          builder: (context, now, _) {
+                            final nextIdx = prayers.indexWhere((p) => p.time.isAfter(now));
+                            final DateTime nextTime;
+                            final String nextName;
+                            final DateTime prevTime;
+                            if (nextIdx == -1) {
+                              nextName = 'FajrTomorrow';
+                              nextTime = todayPrayer.fajr.add(const Duration(days: 1));
+                              prevTime = todayPrayer.isha;
+                            } else {
+                              nextName = prayers[nextIdx].name;
+                              nextTime = prayers[nextIdx].time;
+                              prevTime = nextIdx == 0
+                                  ? todayPrayer.isha.subtract(const Duration(days: 1))
+                                  : prayers[nextIdx - 1].time;
+                            }
+                            final total = nextTime.difference(prevTime).inSeconds;
+                            final elapsed = now.difference(prevTime).inSeconds;
+                            final progress = total <= 0 ? 0.0 : (elapsed / total).clamp(0.0, 1.0);
+                            final remaining = nextTime.difference(now);
+                            final timeFmt = provider.use24HourFormat ? 'HH:mm' : 'hh:mm a';
+
+                            return Column(
+                              children: [
+                                // Ring takes whatever height is left after the rows
+                                Expanded(
+                                  flex: 9,
+                                  child: EnterAnimation(
+                                    index: 2,
+                                    child: LayoutBuilder(
+                                      builder: (context, box) {
+                                        final side = box.biggest.shortestSide;
+                                        _progressNow = progress;
+                                        final painted = AnimatedBuilder(
+                                          animation: Listenable.merge([_pulse, _scan, _spin]),
+                                          builder: (context, _) => CustomPaint(
+                                            size: Size.infinite,
+                                            painter: RingPainter(
+                                              progress: progress,
+                                              pulse: _pulse.value,
+                                              scan: (_scan.value + _spin.extraScan) % 1.0,
+                                              spin: _spin.offset,
+                                              omega: _spin.omega,
+                                              dark: isDark,
+                                            ),
+                                            child: Center(
+                                              child: SizedBox(
+                                                width: side * 0.66,
+                                                child: FittedBox(
+                                                  fit: BoxFit.scaleDown,
+                                                  child: Column(
+                                                    mainAxisSize: MainAxisSize.min,
+                                                    children: [
+                                                      Text(
+                                                        l.t('home.timeTo', {'prayer': l.prayer(nextName)}).toUpperCase(),
+                                                        style: TextStyle(
+                                                          fontSize: 12,
+                                                          letterSpacing: 1.4,
+                                                          fontWeight: FontWeight.w600,
+                                                          color: subtle,
+                                                        ),
+                                                      ),
+                                                      const SizedBox(height: 4),
+                                                      Text(
+                                                        _formatDuration(remaining),
+                                                        style: TextStyle(
+                                                          fontSize: 44,
+                                                          fontWeight: FontWeight.bold,
+                                                          color: isDark ? Colors.white : AppTheme.petronasBlue,
+                                                          fontFeatures: const [FontFeature.tabularFigures()],
+                                                        ),
+                                                      ),
+                                                      Text(
+                                                        DateFormat(timeFmt, l.language).format(nextTime),
+                                                        style: const TextStyle(
+                                                          fontSize: 15,
+                                                          fontWeight: FontWeight.w600,
+                                                          color: AppTheme.petronasYellow,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        );
+                                        // Transparent grab-zone that follows the car; only drags that
+                                        // start on the car spin it (everything else still scrolls).
+                                        return Stack(
+                                          key: _ringKey,
+                                          children: [
+                                            Positioned.fill(child: painted),
+                                            AnimatedBuilder(
+                                              animation: _spin,
+                                              builder: (context, _) {
+                                                final pos = _carPosition(box.biggest);
+                                                return Positioned(
+                                                  left: pos.dx - 48,
+                                                  top: pos.dy - 48,
+                                                  width: 96,
+                                                  height: 96,
+                                                  // Eager recognizer: claims the touch at once so the page's
+                                                  // scroll/pull-to-refresh can't steal vertical drags.
+                                                  child: RawGestureDetector(
+                                                    behavior: HitTestBehavior.translucent,
+                                                    gestures: {
+                                                      EagerGestureRecognizer:
+                                                          GestureRecognizerFactoryWithHandlers<EagerGestureRecognizer>(
+                                                        () => EagerGestureRecognizer(),
+                                                        (_) {},
+                                                      ),
+                                                    },
+                                                    child: Listener(
+                                                      behavior: HitTestBehavior.translucent,
+                                                      onPointerDown: (e) {
+                                                        final a = _touchAngle(e.position);
+                                                        if (a != null) _spin.grab(a, e.timeStamp);
+                                                      },
+                                                      onPointerMove: (e) {
+                                                        final a = _touchAngle(e.position);
+                                                        if (a != null) _spin.dragTo(a, e.timeStamp);
+                                                      },
+                                                      onPointerUp: (_) => _spin.release(),
+                                                      onPointerCancel: (_) => _spin.release(),
+                                                      child: const SizedBox.expand(),
+                                                    ),
+                                                  ),
+                                                );
+                                              },
+                                            ),
+                                          ],
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ),
+                                // All six rows share the remaining height equally
+                                Expanded(
+                                  flex: 11,
+                                  child: Column(
+                                    children: List.generate(prayers.length, (i) {
+                                      final p = prayers[i];
+                                      final isNext = p.name == nextName;
+                                      final passed = p.time.isBefore(now) && !isNext;
+                                      return Expanded(
+                                        flex: p.name == 'Sunrise' ? 8 : 10,
+                                        child: EnterAnimation(
+                                          index: 3 + i,
+                                          child: _PrayerRow(
+                                            name: l.prayer(p.name),
+                                            time: DateFormat(timeFmt, l.language).format(p.time),
+                                            isNext: isNext,
+                                            passed: passed,
+                                            isMinor: p.name == 'Sunrise',
+                                            pulse: _pulse,
+                                            isDark: isDark,
+                                          ),
+                                        ),
+                                      );
+                                    }),
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-            ],
+              ),
+            ),
           ),
         );
       },
     );
+  }
+}
+
+class _Prayer {
+  final String name; // English key (translated only for display)
+  final DateTime time;
+  const _Prayer(this.name, this.time);
+}
+
+class _PrayerRow extends StatelessWidget {
+  final String name;
+  final String time;
+  final bool isNext;
+  final bool passed;
+  final bool isMinor;
+  final Animation<double> pulse;
+  final bool isDark;
+
+  const _PrayerRow({
+    required this.name,
+    required this.time,
+    required this.isNext,
+    required this.passed,
+    required this.isMinor,
+    required this.pulse,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final baseColor = isDark ? Colors.white : AppTheme.black;
+    final textColor = isNext ? AppTheme.petronasGreen : baseColor;
+    final style = TextStyle(
+      fontSize: isMinor ? 14 : 17,
+      fontWeight: isNext ? FontWeight.bold : FontWeight.w500,
+      color: textColor,
+      fontFeatures: const [FontFeature.tabularFigures()],
+    );
+
+    Widget row(double glow) => GlassPanel(
+          highlighted: isNext,
+          glow: isNext ? glow : 0,
+          opacity: passed ? 0.5 : (isMinor ? 0.8 : 1),
+          margin: const EdgeInsets.symmetric(vertical: 3),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          radius: 12,
+          child: Center(child: Row(
+            children: [
+              SizedBox(
+                width: 26,
+                child: passed
+                    ? const Icon(Icons.check_circle, size: 18, color: AppTheme.petronasGreen)
+                    : isNext
+                        ? const Icon(Icons.radio_button_checked, size: 18, color: AppTheme.petronasYellow)
+                        : Icon(Icons.circle_outlined, size: 16, color: baseColor.withValues(alpha: 0.3)),
+              ),
+              Expanded(child: Text(name, style: style)),
+              Text(time, style: style),
+            ],
+          )),
+        );
+
+    final content = isNext
+        ? AnimatedBuilder(animation: pulse, builder: (context, _) => row(pulse.value))
+        : row(0);
+    return SizedBox.expand(child: content);
   }
 }

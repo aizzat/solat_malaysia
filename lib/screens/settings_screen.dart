@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/prayer_provider.dart';
 import '../providers/theme_provider.dart';
+import '../providers/locale_provider.dart';
+import '../l10n/app_strings.dart';
 import '../utils/jakim_zones.dart';
 import '../services/location_service.dart';
 import '../services/notification_service.dart';
@@ -19,7 +21,7 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   String? _selectedState;
   String? _selectedZone;
-  String _selectedSound = 'default';
+  String _selectedSound = 'voice';
   final TextEditingController _searchController = TextEditingController();
   bool _isSearching = false;
 
@@ -32,7 +34,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _loadSound() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      String saved = prefs.getString('notification_sound') ?? 'default';
+      String saved = prefs.getString('notification_sound') ?? 'voice';
       if (saved == 'takbir') saved = 'default';
       _selectedSound = saved;
     });
@@ -44,6 +46,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() {
       _selectedSound = sound;
     });
+    // Already-scheduled prayer alarms keep the sound they were created with.
+    if (mounted) await context.read<PrayerProvider>().rescheduleNotifications();
   }
 
   @override
@@ -64,12 +68,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (result != null && result.latitude != null && result.longitude != null) {
       provider.setManualCoordinates(result.latitude!, result.longitude!, result.city ?? _searchController.text);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Location set to ${result.city}')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(context.read<LocaleProvider>().t('settings.locationSet', {'city': '${result.city}'}))));
         _searchController.clear();
       }
     } else {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Location not found.')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(context.read<LocaleProvider>().t('settings.locationNotFound'))));
       }
     }
   }
@@ -77,6 +81,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final themeProvider = context.watch<ThemeProvider>();
+    final l = context.watch<LocaleProvider>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? AppTheme.petronasGreen : AppTheme.petronasBlue;
 
@@ -86,7 +91,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           padding: const EdgeInsets.all(16),
           children: [
             Text(
-              'Appearance',
+              l.t('settings.appearance'),
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -100,12 +105,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: DropdownButtonFormField<ThemeMode>(
-                  decoration: const InputDecoration(labelText: 'Theme', border: InputBorder.none),
+                  decoration: InputDecoration(labelText: l.t('settings.theme'), border: InputBorder.none),
                   value: themeProvider.themeMode,
-                  items: const [
-                    DropdownMenuItem(value: ThemeMode.system, child: Text('System Default')),
-                    DropdownMenuItem(value: ThemeMode.light, child: Text('Light Mode')),
-                    DropdownMenuItem(value: ThemeMode.dark, child: Text('Dark Mode')),
+                  items: [
+                    DropdownMenuItem(value: ThemeMode.system, child: Text(l.t('settings.themeSystem'))),
+                    DropdownMenuItem(value: ThemeMode.light, child: Text(l.t('settings.themeLight'))),
+                    DropdownMenuItem(value: ThemeMode.dark, child: Text(l.t('settings.themeDark'))),
                   ],
                   onChanged: (val) {
                     if (val != null) themeProvider.setThemeMode(val);
@@ -117,10 +122,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Card(
               elevation: 2,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: DropdownButtonFormField<String>(
+                  decoration: InputDecoration(labelText: l.t('settings.language'), border: InputBorder.none),
+                  value: l.language,
+                  items: [
+                    DropdownMenuItem(value: AppStrings.ms, child: Text(l.t('settings.languageMs'))),
+                    DropdownMenuItem(value: AppStrings.en, child: Text(l.t('settings.languageEn'))),
+                  ],
+                  onChanged: (val) async {
+                    if (val == null) return;
+                    final prayerProvider = context.read<PrayerProvider>();
+                    await l.setLanguage(val);
+                    // Refresh the home-screen widget and scheduled notification text.
+                    await prayerProvider.refreshLocalizedOutputs();
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Card(
+              elevation: 2,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               child: SwitchListTile(
                 activeColor: AppTheme.petronasGreen,
-                title: const Text('Use 24-hour Time Format'),
-                subtitle: const Text('Display time in 24-hour format instead of AM/PM'),
+                title: Text(l.t('settings.use24h')),
+                subtitle: Text(l.t('settings.use24hSub')),
                 value: provider.use24HourFormat,
                 onChanged: (val) {
                   provider.setUse24HourFormat(val);
@@ -131,7 +159,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 24),
 
             Text(
-              'Notifications',
+              l.t('settings.notifications'),
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -145,12 +173,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: DropdownButtonFormField<String>(
-                  decoration: const InputDecoration(labelText: 'Notification Sound', border: InputBorder.none),
+                  decoration: InputDecoration(labelText: l.t('settings.sound'), border: InputBorder.none),
                   value: _selectedSound,
-                  items: const [
-                    DropdownMenuItem(value: 'default', child: Text('System Default')),
-                    DropdownMenuItem(value: 'beep', child: Text('Short Beep')),
-                    DropdownMenuItem(value: 'chime', child: Text('Chime')),
+                  items: [
+                    DropdownMenuItem(value: 'voice', child: Text(l.t('settings.soundVoice'))),
+                    DropdownMenuItem(value: 'default', child: Text(l.t('settings.soundDefault'))),
+                    DropdownMenuItem(value: 'beep', child: Text(l.t('settings.soundBeep'))),
+                    DropdownMenuItem(value: 'chime', child: Text(l.t('settings.soundChime'))),
                   ],
                   onChanged: (val) {
                     if (val != null) _saveSound(val);
@@ -164,21 +193,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               child: ListTile(
                 leading: const Icon(Icons.notifications_active, color: AppTheme.petronasGreen),
-                title: const Text('Test Notification & Sound'),
-                subtitle: const Text('Sends a test notification in 5 seconds.'),
+                title: Text(l.t('settings.test')),
+                subtitle: Text(l.t('settings.testSub')),
                 trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                 onTap: () async {
                   try {
                     await NotificationService.testNotification();
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Test notification will appear in 5 seconds.')),
+                        SnackBar(content: Text(l.t('settings.testSnack'))),
                       );
                     }
                   } catch (e) {
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Error: $e')),
+                        SnackBar(content: Text(l.t('settings.errorPrefix', {'message': '$e'}))),
                       );
                     }
                   }
@@ -189,7 +218,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 24),
 
             Text(
-              'Location Settings',
+              l.t('settings.location'),
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -208,8 +237,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     SwitchListTile(
                       activeColor: AppTheme.petronasGreen,
                       contentPadding: EdgeInsets.zero,
-                      title: const Text('Auto-detect Location (GPS)'),
-                      subtitle: const Text('Uses device GPS to determine best API and Zone.'),
+                      title: Text(l.t('settings.autoDetect')),
+                      subtitle: Text(l.t('settings.autoDetectSub')),
                       value: provider.useAutoDetect,
                       onChanged: (val) {
                         provider.setUseAutoDetect(val);
@@ -219,8 +248,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ListTile(
                       contentPadding: EdgeInsets.zero,
                       leading: const Icon(Icons.security, color: AppTheme.petronasGreen),
-                      title: const Text('App Permissions'),
-                      subtitle: const Text('Manage Location and Notification access in System Settings.'),
+                      title: Text(l.t('settings.permissions')),
+                      subtitle: Text(l.t('settings.permissionsSub')),
                       trailing: const Icon(Icons.open_in_new, size: 16),
                       onTap: () async {
                         await Geolocator.openAppSettings();
@@ -228,11 +257,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     if (!provider.useAutoDetect) ...[
                       const Divider(),
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 8),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
                         child: Text(
-                          'International Manual Setup',
-                          style: TextStyle(fontWeight: FontWeight.bold),
+                          l.t('settings.intlSetup'),
+                          style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
                       ),
                       Row(
@@ -240,8 +269,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           Expanded(
                             child: TextField(
                               controller: _searchController,
-                              decoration: const InputDecoration(
-                                hintText: 'Enter City or Country...',
+                              decoration: InputDecoration(
+                                hintText: l.t('settings.cityHint'),
                                 border: OutlineInputBorder(),
                                 isDense: true,
                               ),
@@ -259,15 +288,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                       const SizedBox(height: 16),
                       const Divider(),
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 8),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
                         child: Text(
-                          'Malaysia JAKIM Zone Selection',
-                          style: TextStyle(fontWeight: FontWeight.bold),
+                          l.t('settings.jakimZone'),
+                          style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
                       ),
                       DropdownButtonFormField<String>(
-                        decoration: const InputDecoration(labelText: 'State'),
+                        decoration: InputDecoration(labelText: l.t('settings.state')),
                         value: _selectedState,
                         items: JakimZones.stateZones.keys.map((state) {
                           return DropdownMenuItem(
@@ -288,7 +317,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       const SizedBox(height: 16),
                       if (_selectedState != null)
                         DropdownButtonFormField<String>(
-                          decoration: const InputDecoration(labelText: 'Zone'),
+                          decoration: InputDecoration(labelText: l.t('settings.zone')),
                           value: _selectedZone,
                           isExpanded: true,
                           items: JakimZones.stateZones[_selectedState]!.map((zoneInfo) {
@@ -315,7 +344,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 24),
             if (provider.locationResult != null) ...[
                Text(
-                'Current Detection Info',
+                l.t('settings.detectionInfo'),
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
@@ -329,11 +358,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Is Malaysia: ${provider.locationResult!.isMalaysia ? "Yes" : "No"}'),
-                      Text('Country: ${provider.locationResult!.country ?? "Unknown"}'),
-                      Text('City/Area: ${provider.locationResult!.city ?? "Unknown"}'),
+                      Text(l.t('settings.isMalaysia', {'value': provider.locationResult!.isMalaysia ? l.t('common.yes') : l.t('common.no')})),
+                      Text(l.t('settings.country', {'value': provider.locationResult!.country ?? l.t('common.unknown')})),
+                      Text(l.t('settings.cityArea', {'value': provider.locationResult!.city ?? l.t('common.unknown')})),
                       if (provider.locationResult!.jakimZoneCode != null)
-                        Text('JAKIM Zone: ${provider.locationResult!.jakimZoneCode}'),
+                        Text(l.t('settings.jakimZoneLine', {'value': provider.locationResult!.jakimZoneCode!})),
                     ],
                   ),
                 ),

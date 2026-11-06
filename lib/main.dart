@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'theme.dart';
@@ -9,6 +10,7 @@ import 'screens/settings_screen.dart';
 import 'screens/qibla_screen.dart';
 import 'providers/prayer_provider.dart';
 import 'providers/theme_provider.dart';
+import 'providers/locale_provider.dart';
 import 'services/notification_service.dart';
 import 'package:workmanager/workmanager.dart';
 
@@ -25,6 +27,8 @@ void callbackDispatcher() {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await initializeDateFormatting('ms');
+  await initializeDateFormatting('en');
   await NotificationService.initialize();
   
   Workmanager().initialize(
@@ -45,6 +49,7 @@ void main() async {
       providers: [
         ChangeNotifierProvider(create: (_) => PrayerProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(create: (_) => LocaleProvider()),
       ],
       child: const SolatMalaysiaApp(),
     ),
@@ -103,13 +108,15 @@ class _MainScreenState extends State<MainScreen> {
     if (hasUpdate && mounted) {
       showDialog(
         context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Update Available'),
-          content: const Text('A new version of Solat Malaysia is available. Would you like to download it now?'),
+        builder: (context) {
+          final l = this.context.read<LocaleProvider>();
+          return AlertDialog(
+          title: Text(l.t('update.title')),
+          content: Text(l.t('update.body')),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Later'),
+              child: Text(l.t('update.later')),
             ),
             FilledButton(
               onPressed: () async {
@@ -119,10 +126,11 @@ class _MainScreenState extends State<MainScreen> {
                   debugPrint('Could not launch update URL');
                 }
               },
-              child: const Text('Update Now'),
+              child: Text(l.t('update.now')),
             ),
           ],
-        ),
+        );
+        },
       );
     }
   }
@@ -142,28 +150,40 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l = context.watch<LocaleProvider>();
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Solat Malaysia'),
+        title: Text(l.t('app.title')),
       ),
-      body: _pages[_selectedIndex],
+      body: Container(
+        decoration: Theme.of(context).brightness == Brightness.dark
+            ? const BoxDecoration(
+                gradient: RadialGradient(
+                  center: Alignment(0, -0.75),
+                  radius: 1.1,
+                  colors: [Color(0xFF00283F), AppTheme.bgDeep],
+                ),
+              )
+            : null,
+        child: _pages[_selectedIndex],
+      ),
       bottomNavigationBar: BottomNavigationBar(
-        items: const <BottomNavigationBarItem>[
+        items: <BottomNavigationBarItem>[
           BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Home',
+            icon: const Icon(Icons.home),
+            label: l.t('nav.home'),
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.explore),
-            label: 'Qibla',
+            icon: const Icon(Icons.explore),
+            label: l.t('nav.qibla'),
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.settings),
-            label: 'Settings',
+            icon: const Icon(Icons.settings),
+            label: l.t('nav.settings'),
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.info),
-            label: 'About',
+            icon: const Icon(Icons.info),
+            label: l.t('nav.about'),
           ),
         ],
         currentIndex: _selectedIndex,

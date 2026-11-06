@@ -8,8 +8,13 @@ class AppTheme {
   static const Color black = Colors.black;
   static const Color white = Colors.white;
 
+  // Futuristic "clean cockpit" surface tokens (same brand palette)
+  static const Color bgDeep = Color(0xFF001122);
+  static const Color bgPanel = Color(0xFF00182E);
+
   static ThemeData get lightTheme {
     return ThemeData(
+      fontFamily: 'Poppins',
       primaryColor: petronasGreen,
       scaffoldBackgroundColor: white,
       colorScheme: const ColorScheme.light(
@@ -47,6 +52,7 @@ class AppTheme {
   }
   static ThemeData get darkTheme {
     return ThemeData(
+      fontFamily: 'Poppins',
       primaryColor: petronasGreen,
       scaffoldBackgroundColor: const Color(0xFF001122), // Very dark navy
       colorScheme: const ColorScheme.dark(
@@ -62,7 +68,15 @@ class AppTheme {
         backgroundColor: Color(0xFF001122),
         foregroundColor: petronasGreen,
         elevation: 0,
+        scrolledUnderElevation: 0,
         centerTitle: true,
+        titleTextStyle: TextStyle(
+          fontFamily: 'Poppins',
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 2,
+          color: petronasGreen,
+        ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(

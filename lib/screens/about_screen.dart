@@ -1,22 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:provider/provider.dart';
+import '../providers/locale_provider.dart';
 import '../theme.dart';
+import '../ui/robot_game.dart';
 
 class AboutScreen extends StatelessWidget {
   const AboutScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final l = context.watch<LocaleProvider>();
     return Center(
+      child: SingleChildScrollView(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(
-            Icons.mosque,
-            size: 100,
-            color: AppTheme.petronasGreen,
-          ),
+          const RobotMosqueGame(width: 300),
           const SizedBox(height: 24),
           Text(
             'Solat Malaysia',
@@ -45,7 +46,7 @@ class AboutScreen extends StatelessWidget {
               }
             },
             child: Text(
-              'check for latest update version here.',
+              l.t('about.checkUpdate'),
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: Theme.of(context).brightness == Brightness.dark ? AppTheme.petronasGreen : AppTheme.petronasBlue,
                     fontWeight: FontWeight.bold,
@@ -55,7 +56,7 @@ class AboutScreen extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           Text(
-            'Developed by:',
+            l.t('about.developedBy'),
             style: Theme.of(context).textTheme.bodyLarge,
           ),
           const SizedBox(height: 8),
@@ -75,7 +76,7 @@ class AboutScreen extends StatelessWidget {
               }
             },
             child: Text(
-              'Visit: www.maizzat.my',
+              l.t('about.visit'),
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: Theme.of(context).brightness == Brightness.dark ? AppTheme.petronasGreen : AppTheme.petronasBlue,
                     fontWeight: FontWeight.bold,
@@ -95,25 +96,24 @@ class AboutScreen extends StatelessWidget {
             padding: const EdgeInsets.all(16),
             margin: const EdgeInsets.symmetric(horizontal: 24),
             decoration: BoxDecoration(
-              color: Colors.grey.withOpacity(0.1),
+              color: Colors.grey.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Column(
               children: [
-                const Text(
-                  'Disclaimer',
-                  style: TextStyle(fontWeight: FontWeight.bold),
+                Text(
+                  l.t('about.disclaimerTitle'),
+                  style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'This application is provided "as is", without warranty of any kind. '
-                  'The developer is not responsible for any inaccuracies in the prayer times provided.',
+                  l.t('about.disclaimer'),
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'Data provided by e-Solat JAKIM & Aladhan API.',
+                  l.t('about.data'),
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(fontStyle: FontStyle.italic),
                 ),
@@ -121,6 +121,7 @@ class AboutScreen extends StatelessWidget {
             ),
           ),
         ],
+      ),
       ),
     );
   }
